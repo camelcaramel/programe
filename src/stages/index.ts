@@ -30,7 +30,7 @@ export const STAGES: StageInfo[] = [
     id: 'stage-01',
     title: '첫 걸음',
     concept: '순서대로 실행',
-    goal: '출구(문)까지 걸어가세요.',
+    goal: '출구(초록 마법진)까지 걸어가세요.',
     hint: '오른쪽으로 3칸, 아래로 2칸, 다시 오른쪽으로 3칸이에요. 명령은 위에서부터 한 줄씩 실행돼요.',
     api: MOVE_API,
     seeds: [1],

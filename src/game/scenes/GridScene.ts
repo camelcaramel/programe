@@ -12,7 +12,7 @@ export const TILE = {
   floor: 48,
   floorAlt: [49, 50, 51],
   wall: 40,
-  exit: 47,
+  exit: 32, // 초록 마법진 (잠긴 문과 헷갈리지 않게)
   door: 45,
   chest: 89,
   chestOpen: 91,
@@ -68,11 +68,17 @@ export class GridScene extends Phaser.Scene {
     applyMute();
     const unsubUi = uiStore.subscribe(applyMute);
     this.scale.on('resize', this.fit, this);
-    this.events.once('shutdown', () => {
+    // 씬이 끝나거나(shutdown) 게임째로 없어질 때(destroy, 개발 중 HMR 포함) 구독을 꼭 푼다
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
       unsubGame();
       unsubUi();
       this.scale.off('resize', this.fit, this);
-    });
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+    this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
     if (import.meta.env.DEV) Object.assign(window, { __grid: this });
     this.sync();
   }

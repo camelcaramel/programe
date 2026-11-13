@@ -466,4 +466,10 @@ kbd {
   .scrub { width: 100px; }
   .plan-note { max-width: 300px; font-size: 14px; }
   .stage-grid { grid-template-columns: repeat(4, 1fr); }
+  .run-btn kbd { display: none; }
+}
+@media (max-height: 780px) {
+  .brief-stars { display: none; }
+  .brief-goal { margin-bottom: 2px; }
+  .console { height: 110px; }
 }

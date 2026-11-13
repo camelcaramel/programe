@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { monaco, setAllowedApi } from './monaco';
 import { codeFor, codeStore, setCode } from '../state/codeStore';
 import { currentTrace, gameStore, uiStore, useStore } from '../state/store';
-import { backToPlan, runCode } from '../game/play';
+import { backToPlan } from '../game/play';
 import { getStage } from '../stages';
 
 /** 스테이지마다 모델을 하나씩 두고, 스테이지를 바꾸면 모델만 교체한다 (되돌리기 기록 유지) */
@@ -67,12 +67,7 @@ export function CodeEditor() {
       quickSuggestions: { other: true, strings: true, comments: false },
       fixedOverflowWidgets: true,
     });
-    ed.addAction({
-      id: 'programe.run',
-      label: '실행',
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
-      run: () => void runCode(),
-    });
+    // Ctrl+Enter 실행은 App 의 전역 단축키가 처리한다
     editor.current = ed;
     deco.current = ed.createDecorationsCollection();
     return () => ed.dispose();

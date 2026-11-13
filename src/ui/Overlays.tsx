@@ -97,6 +97,7 @@ function StageSelect() {
                 disabled={!open}
                 onClick={() => openStage(s.id)}
                 title={open ? s.goal : '앞 스테이지를 클리어하면 열려요'}
+                aria-label={`${i + 1}. ${s.title} (${s.concept})${open ? ` 별 ${stars}개` : ' 잠김'}`}
               >
                 <span className="sc-num">{i + 1}</span>
                 <span className="sc-title">{s.title}</span>

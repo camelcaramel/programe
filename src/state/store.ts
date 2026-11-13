@@ -149,5 +149,6 @@ export function toast(text: string, tone: Toast['tone'] = 'info') {
 export function isTyping(): boolean {
   const el = document.activeElement as HTMLElement | null;
   if (!el) return false;
-  return el.matches('input, textarea, select, [contenteditable="true"]');
+  // Monaco 는 textarea 대신 EditContext div 를 쓸 수도 있어서 에디터 안인지도 확인한다
+  return el.matches('input, textarea, select, [contenteditable="true"]') || !!el.closest('.monaco-editor');
 }
