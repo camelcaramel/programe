@@ -253,6 +253,28 @@ export function ResultCard() {
     );
   }
 
+  // 문법 오류: 실행 전에 막혔으니 맵 목록·다시 보기 없이 오류만
+  if (result.runs.every((r) => r.kind === 'syntax')) {
+    const r = result.runs[0];
+    return (
+      <div className="result-wrap">
+        <div className="result-card lose">
+          <h2 className="result-title">문법 오류</h2>
+          <div className="err-box">
+            {r.line ? <b>{r.line}번째 줄: </b> : null}
+            {r.error?.replace(/^문법 오류: /, '')}
+          </div>
+          <div className="tip-line">💡 코드가 한 줄도 실행되지 않았어요. 에디터의 빨간 밑줄을 고친 뒤 다시 실행해 보세요.</div>
+          <div className="result-actions">
+            <button className="btn primary" autoFocus onClick={backToPlan}>
+              ✎ 코드 고치기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="result-wrap">
       <div className="result-card lose">

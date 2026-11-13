@@ -170,6 +170,16 @@ describe('오류', () => {
     }
   });
 
+  it('자주 나는 문법 오류는 한국어로 설명', () => {
+    const msg = (code: string) => run(code, stage(['S.E'], { seeds: [1] })).runs[0].error ?? '';
+    expect(msg('if True:\nmove_right()\n')).toMatch(/if 문 다음 줄은 안쪽으로 들여 써야/);
+    expect(msg('move_right()\n    move_right()\n')).toMatch(/들여 쓸 필요가 없어요/);
+    expect(msg('for i in range(3)\n    move_right()\n')).toMatch(/콜론/);
+    expect(msg('move_right(\n')).toMatch(/괄호/);
+    expect(msg('look("right)\n')).toMatch(/따옴표/);
+    expect(msg('if look("right") = "wall":\n    move_down()\n')).toMatch(/==/);
+  });
+
   it('잘못된 방향은 한국어 오류 + 줄 번호, 그 전까지의 trace 는 남는다', () => {
     const r = run('move_right()\nlook("front")\n', stage(['S..E'], { seeds: [1] }));
     const x = r.runs[0];

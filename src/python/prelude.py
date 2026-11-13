@@ -74,6 +74,34 @@ def _friendly(e):
     return f"{type(e).__name__}: {msg}"
 
 
+_SYNTAX_KO = [
+    # (영어 메시지에 들어 있는 말, 한국어 설명)  — 위에서부터 먼저 맞는 것을 쓴다
+    ("expected an indented block", "{kw}다음 줄은 안쪽으로 들여 써야 해요 (스페이스 4칸)."),
+    ("unexpected indent", "이 줄은 들여 쓸 필요가 없어요. 앞의 빈칸을 지워 보세요."),
+    ("unindent does not match", "들여쓰기 칸 수가 위 줄들과 맞지 않아요. 스페이스 4칸 단위로 맞춰 보세요."),
+    ("expected ':'", "줄 끝에 콜론(:)이 빠졌어요."),
+    ("was never closed", "여는 괄호가 닫히지 않았어요."),
+    ("unmatched", "닫는 괄호가 하나 더 있어요."),
+    ("unterminated string", "따옴표(\")가 닫히지 않았어요."),
+    ("invalid character", "파이썬에서 쓸 수 없는 글자가 있어요. 한글 따옴표나 특수 문자를 확인해 보세요."),
+    ("Perhaps you forgot a comma", "쉼표(,)가 빠진 것 같아요."),
+    ("Maybe you meant '==' or ':='", "비교할 때는 = 가 아니라 == 를 써요."),
+    ("cannot assign to", "= 왼쪽에는 변수 이름만 올 수 있어요. 비교라면 == 를 써요."),
+    ("invalid syntax", "파이썬 문법에 맞지 않아요. 철자, 괄호, 콜론(:)을 확인해 보세요."),
+]
+
+
+def _syntax_ko(e):
+    msg = e.msg or ""
+    kw = ""
+    if "after '" in msg:
+        kw = msg.split("after '", 1)[1].split("'", 1)[0] + " 문 "
+    for key, ko in _SYNTAX_KO:
+        if key in msg:
+            return ko.format(kw=kw)
+    return msg
+
+
 def _line_of(e):
     for fr in reversed(traceback.extract_tb(e.__traceback__)):
         if fr.filename == FILENAME:
@@ -167,10 +195,7 @@ def _run_stage(code_str, api, limits_json):
     try:
         code = _compile_student(code_str)
     except SyntaxError as e:
-        hint = "들여쓰기나 콜론(:), 괄호를 확인해 보세요."
-        if isinstance(e, IndentationError):
-            hint = "들여쓰기(스페이스 4칸)를 확인해 보세요."
-        return result(False, f"문법 오류: {e.msg}  → {hint}", e.lineno, "syntax")
+        return result(False, "문법 오류: " + _syntax_ko(e), e.lineno, "syntax")
 
     sys.settrace(tracer)
     try:

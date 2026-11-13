@@ -34,6 +34,8 @@ const cy = (y: number) => y * T + T / 2;
 export class GridScene extends Phaser.Scene {
   private terrainLayer!: Phaser.GameObjects.Container;
   private objLayer!: Phaser.GameObjects.Container;
+  /** 잠깐 보였다 사라지는 것들(글자·불꽃·사라지는 문/열쇠/몬스터). 다시 그릴 때 통째로 비운다 */
+  private fxLayer!: Phaser.GameObjects.Container;
   private player!: Phaser.GameObjects.Sprite;
   private things = new Map<string, Phaser.GameObjects.Sprite | Phaser.GameObjects.Image>();
   private hpBars = new Map<string, Phaser.GameObjects.Graphics>();
@@ -62,6 +64,7 @@ export class GridScene extends Phaser.Scene {
     this.objLayer = this.add.container(0, 0);
     this.player = this.add.sprite(0, 0, 'td', TILE.player).setDepth(10).setVisible(false);
     this.objLayer.add(this.player);
+    this.fxLayer = this.add.container(0, 0);
 
     const unsubGame = gameStore.subscribe(() => this.sync());
     const applyMute = () => (this.sound.mute = uiStore.get().muted);
@@ -89,10 +92,12 @@ export class GridScene extends Phaser.Scene {
     const s = gameStore.get();
     if (s.screen !== 'play' || s.levels.length === 0) {
       this.objLayer.setVisible(false);
+      this.fxLayer.setVisible(false);
       this.terrainLayer.setVisible(false);
       return;
     }
     this.objLayer.setVisible(true);
+    this.fxLayer.setVisible(true);
     this.terrainLayer.setVisible(true);
 
     const showRun = (s.phase === 'replay' || s.phase === 'done') && !!s.result;
@@ -142,7 +147,10 @@ export class GridScene extends Phaser.Scene {
 
   /** 움직이는 것들(상자·열쇠·문·몬스터·플레이어)을 board 상태 그대로 다시 그린다 */
   private drawObjects(board: BoardState, plan: boolean) {
+    // 진행 중이던 연출을 끊으면 onComplete 가 불리지 않으므로, 연출용 오브젝트는 여기서 직접 지운다
     this.tweens.killAll();
+    this.time.removeAllEvents();
+    this.fxLayer.removeAll(true);
     for (const o of this.things.values()) o.destroy();
     for (const g of this.hpBars.values()) g.destroy();
     for (const m of this.marks) m.destroy();
@@ -228,7 +236,7 @@ export class GridScene extends Phaser.Scene {
         if (step.event === 'door') {
           const door = this.things.get(`d:${tk}`);
           this.things.delete(`d:${tk}`);
-          if (door) this.tweens.add({ targets: door, alpha: 0, scaleY: 0.2, duration: d * 0.6, onComplete: () => door.destroy() });
+          if (door) this.tweens.add({ targets: this.retire(door), alpha: 0, scaleY: 0.2, duration: d * 0.6, onComplete: () => door.destroy() });
           this.play('select');
         }
         this.hop(p, tx, ty, d, () => {
@@ -241,7 +249,7 @@ export class GridScene extends Phaser.Scene {
           } else if (step.event === 'key') {
             const k = this.things.get(`k:${tk}`);
             this.things.delete(`k:${tk}`);
-            if (k) this.tweens.add({ targets: k, y: ty - 10, alpha: 0, duration: d, onComplete: () => k.destroy() });
+            if (k) this.tweens.add({ targets: this.retire(k), y: ty - 10, alpha: 0, duration: d, onComplete: () => k.destroy() });
             this.play('gem');
           } else if (step.event === 'exit') {
             this.spark(tx, ty, 0xffd34d, 24, 70);
@@ -277,7 +285,7 @@ export class GridScene extends Phaser.Scene {
   private cast(step: TraceStep, d: number, tx: number, ty: number, tk: string) {
     const tint = step.skill ? SKILL_TINT[step.skill] : 0xffffff;
     const ball = this.add.image(this.player.x, this.player.y, 'dot').setTint(tint).setScale(0.45).setBlendMode(Phaser.BlendModes.ADD);
-    this.objLayer.add(ball);
+    this.fxLayer.add(ball);
     this.play('magic');
     this.tweens.add({
       targets: ball,
@@ -297,7 +305,7 @@ export class GridScene extends Phaser.Scene {
           this.hpBars.delete(tk);
           if (mon) {
             this.tweens.killTweensOf(mon);
-            this.tweens.add({ targets: mon, alpha: 0, scale: 0.2, angle: 180, duration: d, onComplete: () => mon.destroy() });
+            this.tweens.add({ targets: this.retire(mon), alpha: 0, scale: 0.2, angle: 180, duration: d, onComplete: () => mon.destroy() });
           }
           this.play('disappear');
           return;
@@ -313,6 +321,13 @@ export class GridScene extends Phaser.Scene {
         }
       },
     });
+  }
+
+  /** 화면에서 사라질 오브젝트를 연출용 층으로 옮긴다 (중간에 다시 그려도 남지 않게) */
+  private retire<T extends Phaser.GameObjects.GameObject>(o: T): T {
+    this.objLayer.remove(o);
+    this.fxLayer.add(o);
+    return o;
   }
 
   private hop(p: Phaser.GameObjects.Sprite, tx: number, ty: number, d: number, done: () => void) {
@@ -334,7 +349,7 @@ export class GridScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScale((screenPx * 3.2) / 48 / z)
       .setDepth(50);
-    this.objLayer.add(t);
+    this.fxLayer.add(t);
     this.tweens.add({ targets: t, y: y - 10, alpha: { from: 1, to: 0 }, duration: 900, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
   }
 
@@ -348,7 +363,7 @@ export class GridScene extends Phaser.Scene {
       blendMode: 'ADD',
       emitting: false,
     });
-    this.objLayer.add(e);
+    this.fxLayer.add(e);
     e.explode(count);
     this.time.delayedCall(600, () => e.destroy());
   }

@@ -79,12 +79,24 @@ export async function runCode() {
   const score = scoreRun(stage, result, code);
   const failIdx = result.runs.findIndex((r) => !r.summary.cleared);
 
-  // 콘솔: 맵별 결과와 print 출력
+  // 문법 오류면 실행 자체가 안 됐으니 재생 없이 바로 오류 카드
+  if (result.runs.every((r) => r.kind === 'syntax')) {
+    const r = result.runs[0];
+    log('error', (r.line ? `${r.line}번째 줄 · ` : '') + r.error, '문법');
+    uiStore.set({ codeError: { line: r.line, message: r.error ?? '' } });
+    gameStore.set({ phase: 'done', result, score, newRecord: false, view: 0, step: 0, playing: false });
+    return;
+  }
+
+  // 콘솔: 맵별 결과와 print 출력 (같은 오류가 맵마다 반복되면 짧게)
   log('info', `실행! 맵 ${result.runs.length}개에 같은 코드를 돌려요.`, '실행');
+  let lastErr = '';
   result.runs.forEach((r, i) => {
     const src = `맵 ${i + 1}`;
     r.out.forEach((line) => log('out', line, src));
-    if (r.error) log('error', (r.line ? `${r.line}번째 줄 · ` : '') + r.error, src);
+    const errText = r.error ? (r.line ? `${r.line}번째 줄 · ` : '') + r.error : '';
+    if (r.error) log('error', errText === lastErr ? '(위와 같은 오류)' : errText, src);
+    if (r.error) lastErr = errText;
     else log(r.summary.cleared ? 'ok' : 'error', `${r.summary.cleared ? '✔' : '✘'} ${REASON_TEXT[r.summary.reason]} (${r.summary.turns}턴)`, src);
   });
 

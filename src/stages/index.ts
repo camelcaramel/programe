@@ -149,7 +149,7 @@ move_right()
     concept: 'if 조건문',
     goal: '? 칸에는 슬라임이 있을 수도, 없을 수도 있어요. 3개의 맵을 모두 통과하세요.',
     hint: 'look("right") 로 오른쪽 칸을 살펴보고, 슬라임이면 cast("fireball", "right") 로 처치해요.',
-    note: '? 칸은 실행할 때마다 바뀌어요. 같은 코드가 맵 3개를 모두 통과해야 해요.',
+    note: '? 칸은 실행할 때마다 빈칸이나 슬라임으로 바뀌어요.',
     api: SENSE_API,
     seeds: [1, 8, 9],
     stars: { lines: 4 },
@@ -219,7 +219,7 @@ for i in range(8):
     note: '복도 길이가 실행할 때마다 달라지고, 턴 제한은 걸어야 할 칸 수 + 2예요.',
     api: SENSE_API,
     seeds: [1, 8, 2],
-    stars: { lines: 4 },
+    stars: { lines: 5 },
     map: (rng) => {
       const a = 3 + rng.int(6); // 오른쪽으로 갈 칸
       const b = 2 + rng.int(4); // 아래로 갈 칸
