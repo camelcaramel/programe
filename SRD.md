@@ -24,13 +24,13 @@
 | 게임 규칙 | TypeScript 시뮬레이터 (순수 로직, Worker 안에서 실행) |
 | 테스트 | Vitest (시뮬레이터 단위 테스트) |
 | 빌드 | Vite |
-| 에셋 | Kenney 탑다운 팩 (예: Tiny Dungeon 계열) + UI Pack |
+| 에셋 | Kenney Tiny Dungeon (16×16) + UI Pack |
 
 ## 3. 에셋 사용 규칙
 
 - 모든 그래픽/사운드는 **Kenney 에셋**만 사용한다.
 - 추천 팩:
-  - 탑다운 타일·캐릭터·몬스터 팩 (예: Tiny Dungeon). 정확한 팩은 PLAN G0에서 확정한다.
+  - **Tiny Dungeon 1.0** (16×16 타일 132개: 바닥·벽·문·상자·캐릭터·몬스터·무기·물약). `public/assets/kenney/topdown/`에 있다. 화면에서는 정수배로 키우고 Phaser `pixelArt: true`로 그린다. 타일 번호와 용도는 PLAN §10 참고.
   - UI Pack 또는 Pixel UI Pack
   - 기존 효과음(`public/assets/kenney/audio/`)은 계속 사용
 - 에셋은 `public/assets/kenney/` 하위에 정리한다.
