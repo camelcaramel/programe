@@ -1,6 +1,8 @@
 // Phaser 와 React 가 함께 쓰는 아주 작은 상태 저장소 (useSyncExternalStore 용)
 import { useSyncExternalStore } from 'react';
-import type { MonsterKind, SkillName } from '../game/data';
+import type { Level, TraceStep } from '../sim';
+import type { StageRunResult } from '../python/stageBridge';
+import type { Score } from '../stages/score';
 
 export interface Store<T> {
   get(): T;
@@ -33,66 +35,103 @@ export function useStore<T, S>(store: Store<T>, selector: (s: T) => S): S {
 }
 
 // ---------------- 게임 상태 ----------------
-export type Phase = 'title' | 'playing' | 'dead' | 'victory';
-export interface MiniDot { x: number; y: number; kind: MonsterKind }
-export interface MapInfo { cols: number; rows: number; tile: number; solid: Uint8Array }
+export type Screen = 'title' | 'select' | 'play';
+/**
+ * plan    : 맵을 보며 코드를 쓰는 중
+ * running : 파이썬 실행 중 (결과 기다림)
+ * replay  : 실행 기록 재생 중
+ * done    : 재생이 끝나고 결과 카드를 보여 주는 중
+ */
+export type PlayPhase = 'plan' | 'running' | 'replay' | 'done';
+export type Speed = 1 | 2 | 4;
 
 export interface GameState {
-  phase: Phase;
-  hp: number; maxHp: number;
-  mp: number; maxMp: number;
-  level: number; xp: number; xpNext: number;
-  gold: number;
-  kills: number; casts: number; codeRuns: number; codeErrors: number; deaths: number;
-  startedAt: number; endedAt: number;
-  player: { x: number; y: number };
-  monsters: MiniDot[];
-  map: MapInfo | null;
-  gateOpen: boolean;
-  missionsDone: string[];
-  slotBusy: boolean[];
-  slotLastCasts: SkillName[][];
+  screen: Screen;
+  stageId: string;
+  phase: PlayPhase;
+  /** 현재 스테이지의 시드별 맵 */
+  levels: Level[];
+  result: StageRunResult | null;
+  score: Score | null;
+  /** 이번 실행으로 별 최고 기록을 새로 세웠는지 */
+  newRecord: boolean;
+  /** 보고 있는 시드 번호(levels 의 index) */
+  view: number;
+  /** 재생 위치: trace 에서 몇 개를 적용했는지 */
+  step: number;
+  playing: boolean;
+  speed: Speed;
+  /** 재생 끝에 결과 카드를 닫았는지 */
+  resultHidden: boolean;
 }
 
-export const initialGameState = (): GameState => ({
-  phase: 'title',
-  hp: 100, maxHp: 100, mp: 60, maxMp: 60,
-  level: 1, xp: 0, xpNext: 70, gold: 0,
-  kills: 0, casts: 0, codeRuns: 0, codeErrors: 0, deaths: 0,
-  startedAt: 0, endedAt: 0,
-  player: { x: 0, y: 0 }, monsters: [], map: null, gateOpen: false,
-  missionsDone: [],
-  slotBusy: [false, false, false],
-  slotLastCasts: [[], [], []],
+export const gameStore = createStore<GameState>({
+  screen: 'title',
+  stageId: 'stage-01',
+  phase: 'plan',
+  levels: [],
+  result: null,
+  score: null,
+  newRecord: false,
+  view: 0,
+  step: 0,
+  playing: false,
+  speed: 1,
+  resultHidden: false,
 });
 
-export const gameStore = createStore<GameState>(initialGameState());
+/** 지금 보고 있는 시드의 실행 기록 */
+export function currentTrace(s: GameState = gameStore.get()): TraceStep[] {
+  return s.result?.runs[s.view]?.summary.trace ?? [];
+}
 
 // ---------------- UI 상태 ----------------
-export type Tab = 'code' | 'missions' | 'help';
-export interface SlotError { line: number | null; message: string }
+export type Tab = 'code' | 'help';
+export interface CodeError {
+  line: number | null;
+  message: string;
+}
 export interface UiState {
   panelOpen: boolean;
   tab: Tab;
-  activeSlot: number;
-  slotErrors: (SlotError | null)[];
+  /** 에디터에 빨간 밑줄로 보여 줄 오류 */
+  codeError: CodeError | null;
   pythonStatus: 'loading' | 'ready' | 'error';
+  muted: boolean;
 }
+
+const MUTE_KEY = 'programe.muted';
+function loadMuted() {
+  try {
+    return localStorage.getItem(MUTE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export const uiStore = createStore<UiState>({
   panelOpen: true,
   tab: 'code',
-  activeSlot: 0,
-  slotErrors: [null, null, null],
+  codeError: null,
   pythonStatus: 'loading',
+  muted: loadMuted(),
+});
+
+uiStore.subscribe(() => {
+  try {
+    localStorage.setItem(MUTE_KEY, uiStore.get().muted ? '1' : '0');
+  } catch {
+    /* 저장소를 못 쓰면 무시 */
+  }
 });
 
 // ---------------- 콘솔 ----------------
-export type LogKind = 'info' | 'out' | 'cast' | 'error' | 'ok';
+export type LogKind = 'info' | 'out' | 'ok' | 'error';
 export interface LogLine { id: number; kind: LogKind; text: string; source: string }
 let logId = 0;
 export const consoleStore = createStore<{ lines: LogLine[] }>({ lines: [] });
 export function log(kind: LogKind, text: string, source = '') {
-  consoleStore.set((s) => ({ lines: [...s.lines, { id: ++logId, kind, text, source }].slice(-150) }));
+  consoleStore.set((s) => ({ lines: [...s.lines, { id: ++logId, kind, text, source }].slice(-200) }));
 }
 export const clearLog = () => consoleStore.set({ lines: [] });
 
@@ -106,7 +145,7 @@ export function toast(text: string, tone: Toast['tone'] = 'info') {
   setTimeout(() => toastStore.set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 3200);
 }
 
-/** 입력창/에디터에 타이핑 중이면 게임 키 입력을 막는다 */
+/** 입력창/에디터에 타이핑 중이면 단축키를 막는다 */
 export function isTyping(): boolean {
   const el = document.activeElement as HTMLElement | null;
   if (!el) return false;

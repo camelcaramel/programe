@@ -1,39 +1,57 @@
 import { useEffect, useRef } from 'react';
-import { monaco } from './monaco';
-import { codeStore, setSlotCode } from '../state/codeStore';
-import { uiStore, useStore } from '../state/store';
+import { monaco, setAllowedApi } from './monaco';
+import { codeFor, codeStore, setCode } from '../state/codeStore';
+import { currentTrace, gameStore, uiStore, useStore } from '../state/store';
+import { backToPlan, runCode } from '../game/play';
+import { getStage } from '../stages';
 
-/** 슬롯마다 모델을 하나씩 두고, 슬롯을 바꾸면 모델만 교체한다 (되돌리기 기록 유지) */
-const models: monaco.editor.ITextModel[] = [];
-function modelFor(i: number) {
-  if (!models[i]) {
-    models[i] = monaco.editor.createModel(codeStore.get().slots[i].code, 'python');
-    models[i].onDidChangeContent(() => {
-      setSlotCode(i, models[i].getValue());
-      // 고치기 시작하면 이전 오류 표시를 지운다
-      monaco.editor.setModelMarkers(models[i], 'programe', []);
+/** 스테이지마다 모델을 하나씩 두고, 스테이지를 바꾸면 모델만 교체한다 (되돌리기 기록 유지) */
+const models = new Map<string, monaco.editor.ITextModel>();
+function modelFor(stageId: string) {
+  let m = models.get(stageId);
+  if (!m) {
+    const model = monaco.editor.createModel(codeFor(stageId), 'python');
+    model.onDidChangeContent(() => {
+      setCode(stageId, model.getValue());
+      monaco.editor.setModelMarkers(model, 'programe', []);
+      uiStore.set({ codeError: null });
+      // 재생을 보다가 코드를 고치기 시작하면 계획 단계로 돌아간다
+      const p = gameStore.get().phase;
+      if (p === 'replay' || p === 'done') backToPlan();
     });
+    models.set(stageId, model);
+    m = model;
   }
-  return models[i];
+  return m;
 }
 
-/** '예제로 되돌리기' 처럼 바깥에서 코드가 바뀌었을 때 에디터에 반영 */
+/** '처음 코드로' 처럼 바깥에서 코드가 바뀌었을 때 에디터에 반영 */
 codeStore.subscribe(() => {
-  codeStore.get().slots.forEach((s, i) => {
-    const m = models[i];
-    if (m && m.getValue() !== s.code) m.setValue(s.code);
-  });
+  for (const [id, m] of models) {
+    const code = codeFor(id);
+    if (m.getValue() !== code) m.setValue(code);
+  }
 });
+
+/** 재생 중 지금 실행되는 줄 */
+function activeLine(): number | null {
+  const s = gameStore.get();
+  if ((s.phase !== 'replay' && s.phase !== 'done') || s.step === 0) return null;
+  return currentTrace(s)[s.step - 1]?.line ?? null;
+}
 
 export function CodeEditor() {
   const host = useRef<HTMLDivElement>(null);
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const slot = useStore(uiStore, (s) => s.activeSlot);
-  const error = useStore(uiStore, (s) => s.slotErrors[s.activeSlot]);
+  const deco = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
+  const stageId = useStore(gameStore, (s) => s.stageId);
+  const running = useStore(gameStore, (s) => s.phase === 'running');
+  const line = useStore(gameStore, () => activeLine());
+  const error = useStore(uiStore, (s) => s.codeError);
 
   useEffect(() => {
     const ed = monaco.editor.create(host.current!, {
-      model: modelFor(uiStore.get().activeSlot),
+      model: modelFor(gameStore.get().stageId),
       theme: 'programe',
       fontSize: 15,
       fontFamily: 'Consolas, "D2Coding", "Cascadia Code", monospace',
@@ -45,34 +63,67 @@ export function CodeEditor() {
       renderLineHighlight: 'all',
       padding: { top: 10, bottom: 10 },
       lineNumbersMinChars: 3,
+      glyphMargin: true,
       quickSuggestions: { other: true, strings: true, comments: false },
       fixedOverflowWidgets: true,
     });
+    ed.addAction({
+      id: 'programe.run',
+      label: '실행',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      run: () => void runCode(),
+    });
     editor.current = ed;
+    deco.current = ed.createDecorationsCollection();
     return () => ed.dispose();
   }, []);
 
   useEffect(() => {
-    editor.current?.setModel(modelFor(slot));
-  }, [slot]);
+    editor.current?.setModel(modelFor(stageId));
+    setAllowedApi(getStage(stageId).api);
+    deco.current = editor.current?.createDecorationsCollection() ?? null;
+  }, [stageId]);
 
-  // 파이썬 오류가 난 줄에 빨간 밑줄 표시
   useEffect(() => {
-    const m = modelFor(slot);
+    editor.current?.updateOptions({ readOnly: running });
+  }, [running]);
+
+  // 재생 중인 줄 하이라이트
+  useEffect(() => {
+    if (!deco.current) return;
+    if (!line) {
+      deco.current.clear();
+      return;
+    }
+    deco.current.set([
+      {
+        range: new monaco.Range(line, 1, line, 1),
+        options: { isWholeLine: true, className: 'run-line', glyphMarginClassName: 'run-glyph' },
+      },
+    ]);
+    editor.current?.revealLineInCenterIfOutsideViewport(line);
+  }, [line]);
+
+  // 파이썬 오류가 난 줄에 빨간 밑줄
+  useEffect(() => {
+    const m = modelFor(stageId);
     if (!error) {
       monaco.editor.setModelMarkers(m, 'programe', []);
       return;
     }
-    const line = Math.min(error.line ?? 1, m.getLineCount());
+    const ln = Math.min(Math.max(1, error.line ?? 1), m.getLineCount());
     monaco.editor.setModelMarkers(m, 'programe', [
       {
-        startLineNumber: line, endLineNumber: line,
-        startColumn: m.getLineFirstNonWhitespaceColumn(line) || 1, endColumn: m.getLineMaxColumn(line),
-        message: error.message, severity: monaco.MarkerSeverity.Error,
+        startLineNumber: ln,
+        endLineNumber: ln,
+        startColumn: m.getLineFirstNonWhitespaceColumn(ln) || 1,
+        endColumn: m.getLineMaxColumn(ln),
+        message: error.message,
+        severity: monaco.MarkerSeverity.Error,
       },
     ]);
-    if (error.line) editor.current?.revealLineInCenterIfOutsideViewport(line);
-  }, [error, slot]);
+    if (error.line) editor.current?.revealLineInCenterIfOutsideViewport(ln);
+  }, [error, stageId]);
 
   return <div className="editor" ref={host} />;
 }

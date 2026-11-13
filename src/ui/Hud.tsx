@@ -1,149 +1,294 @@
-import { useEffect, useRef } from 'react';
-import { gameStore, uiStore, useStore } from '../state/store';
-import { MISSIONS } from '../game/data';
+// 게임 화면 위에 떠 있는 정보: 스테이지 이름, 상태(HP·상자·열쇠·턴), 아래 재생 막대, 결과 카드
+import { initialBoard, boardAt } from '../sim';
+import { currentTrace, gameStore, uiStore, useStore, type Speed } from '../state/store';
+import {
+  REASON_TEXT,
+  backToPlan,
+  goSelect,
+  hideResult,
+  nextStageId,
+  openStage,
+  runCode,
+  seek,
+  setSpeed,
+  skipToEnd,
+  stepBy,
+  togglePlay,
+  viewSeed,
+} from '../game/play';
+import { getStage, stageIndex } from '../stages';
+import { HeartIcon, StarIcon } from './icons';
+import { tileImg } from './SidePanel';
+import { TILE } from '../game/scenes/GridScene';
 
-const asset = (p: string) => import.meta.env.BASE_URL + p;
-const TILE_IMG = 'assets/kenney/platformer/Sprites/Tiles/Default/';
-
-/** 게임식 체력/마나 바: 줄어들 때 하얀 잔상이 천천히 따라온다 */
-function GameBar({ value, max, kind, label, small }: { value: number; max: number; kind: 'hp' | 'mp'; label: string; small?: boolean }) {
-  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
-  return (
-    <div className={`gbar ${kind}${small ? ' small' : ''}`} role="meter" aria-label={label} aria-valuenow={value} aria-valuemax={max}>
-      <div className="gbar-trail" style={{ width: `${pct}%` }} />
-      <div className="gbar-fill" style={{ width: `${pct}%` }} />
-      <div className="gbar-text">
-        <span>{label}</span>
-        <span>
-          {value} / {max}
-        </span>
-      </div>
-    </div>
-  );
+/** 지금 화면에 보이는 장면의 상태 */
+function useBoard() {
+  return useStore(gameStore, (s) => {
+    const showRun = (s.phase === 'replay' || s.phase === 'done') && !!s.result;
+    const level = s.levels[showRun ? s.view : 0];
+    if (!level) return null;
+    const b = showRun ? boardAt(level, currentTrace(s), s.step) : initialBoard(level);
+    // useSyncExternalStore 가 매번 새 객체로 착각하지 않도록 원시값 문자열로
+    return JSON.stringify({
+      hp: b.hp,
+      maxHp: level.playerHp,
+      coins: b.coins,
+      chests: level.chests.length,
+      keys: b.keys,
+      hasKeys: level.keys.length > 0,
+      turn: b.turn,
+      maxTurns: level.maxTurns,
+      hidden: !showRun && level.randomCells.length > 0,
+      anyChests: s.levels.some((l) => l.chests.length > 0),
+    });
+  });
 }
 
-export function Hud() {
-  const hp = useStore(gameStore, (s) => s.hp);
-  const maxHp = useStore(gameStore, (s) => s.maxHp);
-  const mp = useStore(gameStore, (s) => s.mp);
-  const maxMp = useStore(gameStore, (s) => s.maxMp);
-  const xp = useStore(gameStore, (s) => s.xp);
-  const xpNext = useStore(gameStore, (s) => s.xpNext);
-  const level = useStore(gameStore, (s) => s.level);
-  const gold = useStore(gameStore, (s) => s.gold);
-  const danger = maxHp > 0 && hp > 0 && hp / maxHp < 0.3;
-
-  // 골드가 늘면 살짝 튀는 연출
-  const goldEl = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = goldEl.current;
-    if (!el || gold === 0) return;
-    el.classList.remove('bump');
-    void el.offsetWidth;
-    el.classList.add('bump');
-  }, [gold]);
+export function StageHud() {
+  const stageId = useStore(gameStore, (s) => s.stageId);
+  const muted = useStore(uiStore, (s) => s.muted);
+  const raw = useBoard();
+  if (!raw) return null;
+  const b = JSON.parse(raw) as {
+    hp: number; maxHp: number; coins: number; chests: number; keys: number; hasKeys: boolean; turn: number; maxTurns: number; hidden: boolean;
+    anyChests: boolean;
+  };
+  const stage = getStage(stageId);
 
   return (
     <>
-      <div className="hud-player">
-        <div className={`portrait${danger ? ' danger' : ''}`}>
-          <img src={asset(TILE_IMG + 'hud_player_beige.png')} alt="" />
-          <span className="lv-badge">Lv.{level}</span>
-        </div>
-        <div className="hud-plate">
-          <GameBar value={hp} max={maxHp} kind="hp" label="HP" />
-          <GameBar value={mp} max={maxMp} kind="mp" label="MP" small />
-          <div className="xp-row" role="meter" aria-label="경험치" aria-valuenow={xp} aria-valuemax={xpNext}>
-            <div className="xp-track">
-              <div className="xp-fill" style={{ width: `${xpNext > 0 ? Math.min(100, (xp / xpNext) * 100) : 0}%` }} />
-            </div>
-            <span className="xp-text">
-              EXP {xp}/{xpNext}
-            </span>
+      <div className="hud-stage">
+        <button className="btn ghost small" onClick={goSelect} title="스테이지 고르기">
+          ◀ 스테이지
+        </button>
+        <div className="hud-title">
+          <span className="hud-num">{stageIndex(stageId) + 1}</span>
+          <div>
+            <div className="hud-name">{stage.title}</div>
+            <div className="hud-concept">{stage.concept}</div>
           </div>
         </div>
       </div>
 
-      <div className="hud-right">
-        <div className="gold-pill" ref={goldEl} title="골드">
-          <img src={asset(TILE_IMG + 'hud_coin.png')} alt="" />
-          {gold}
+      <div className="hud-stats">
+        <div className="pill hearts" title="HP">
+          {Array.from({ length: b.maxHp }, (_, i) => (
+            <HeartIcon key={i} on={i < b.hp} />
+          ))}
         </div>
-        <Minimap />
+        {b.anyChests && (
+          <div className="pill" title="연 보물상자">
+            <img src={tileImg(TILE.chest)} alt="" className="pixel" />
+            {b.coins}
+            {!b.hidden && <small>/{b.chests}</small>}
+          </div>
+        )}
+        {(b.hasKeys || b.keys > 0) && (
+          <div className="pill" title="가진 열쇠">
+            <span className="key-emoji">🔑</span>
+            {b.keys}
+          </div>
+        )}
+        <div className="pill" title="쓴 턴 / 턴 제한">
+          <span className="turn-label">턴</span>
+          {b.turn}
+          <small>/{b.maxTurns}</small>
+        </div>
+        <button className="pill btn-pill" title={muted ? '소리 켜기' : '소리 끄기'} onClick={() => uiStore.set({ muted: !muted })}>
+          {muted ? '🔇' : '🔊'}
+        </button>
       </div>
     </>
   );
 }
 
-function Minimap() {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const draw = () => {
-      const c = canvas.current;
-      const s = gameStore.get();
-      if (!c || !s.map) return;
-      const { cols, rows, tile, solid } = s.map;
-      const k = 2; // 타일 1칸 = 2px
-      if (c.width !== cols * k) {
-        c.width = cols * k;
-        c.height = rows * k;
-      }
-      const ctx = c.getContext('2d')!;
-      ctx.clearRect(0, 0, c.width, c.height);
-      // 게임 속 흙/잔디 색 그대로
-      for (let y = 0; y < rows; y++)
-        for (let x = 0; x < cols; x++) {
-          if (!solid[y * cols + x]) continue;
-          const top = y === 0 || !solid[(y - 1) * cols + x];
-          ctx.fillStyle = top ? '#2ecc71' : '#de7e4f';
-          ctx.fillRect(x * k, y * k, k, k);
-        }
-      if (!s.gateOpen) {
-        ctx.fillStyle = '#353541';
-        ctx.fillRect(88 * k, 8 * k, k, 4 * k);
-      }
-      for (const m of s.monsters) {
-        const r = m.kind === 'golem' ? 4 : 3;
-        ctx.fillStyle = '#353541';
-        ctx.fillRect(Math.round((m.x / tile) * k - r / 2) - 0.5, Math.round((m.y / tile) * k - r / 2) - 0.5, r + 1, r + 1);
-        ctx.fillStyle = '#e54341';
-        ctx.fillRect(Math.round((m.x / tile) * k - r / 2), Math.round((m.y / tile) * k - r / 2), r, r);
-      }
-      const px = Math.round((s.player.x / tile) * k);
-      const py = Math.round((s.player.y / tile) * k);
-      ctx.fillStyle = '#353541';
-      ctx.fillRect(px - 3, py - 3, 6, 6);
-      ctx.fillStyle = '#ffc533';
-      ctx.fillRect(px - 2, py - 2, 4, 4);
-    };
-    draw();
-    return gameStore.subscribe(draw);
-  }, []);
+// ---------------------------------------------------------------- 아래 재생 막대
+
+const SPEEDS: Speed[] = [1, 2, 4];
+
+export function ReplayBar() {
+  const phase = useStore(gameStore, (s) => s.phase);
+  const stageId = useStore(gameStore, (s) => s.stageId);
+  const nMaps = useStore(gameStore, (s) => s.levels.length);
+  const status = useStore(uiStore, (s) => s.pythonStatus);
+
+  if (phase === 'plan') {
+    const stage = getStage(stageId);
+    return (
+      <div className="bottom-bar plan">
+        <div className="plan-note">
+          {nMaps > 1 ? (
+            <>
+              <b>맵 {nMaps}개</b>를 같은 코드로 모두 통과해야 해요. {stage.note}
+            </>
+          ) : (
+            <>맵을 잘 보고, 오른쪽 마법서에 주문(코드)을 적은 뒤 실행하세요.</>
+          )}
+        </div>
+        <button className="btn primary big-run" disabled={status !== 'ready'} onClick={() => void runCode()}>
+          {status === 'ready' ? '▶ 실행' : '엔진 깨우는 중…'}
+        </button>
+      </div>
+    );
+  }
+  if (phase === 'running') {
+    return (
+      <div className="bottom-bar">
+        <div className="casting">
+          <span className="spinner" /> 주문을 외우는 중… (맵 {nMaps}개 실행)
+        </div>
+      </div>
+    );
+  }
+  return <Controls />;
+}
+
+function Controls() {
+  const result = useStore(gameStore, (s) => s.result);
+  const view = useStore(gameStore, (s) => s.view);
+  const step = useStore(gameStore, (s) => s.step);
+  const playing = useStore(gameStore, (s) => s.playing);
+  const speed = useStore(gameStore, (s) => s.speed);
+  const len = useStore(gameStore, (s) => currentTrace(s).length);
+  if (!result) return null;
+
   return (
-    <div className="hud-map" title="지도 (노랑: 나 · 빨강: 몬스터 · 검정: 닫힌 문)">
-      <canvas ref={canvas} />
+    <div className="bottom-bar controls">
+      <div className="seed-tabs">
+        {result.runs.map((r, i) => (
+          <button key={i} className={`seed-tab ${i === view ? 'active' : ''} ${r.summary.cleared ? 'ok' : 'bad'}`} onClick={() => viewSeed(i)} title={REASON_TEXT[r.summary.reason]}>
+            {r.summary.cleared ? '✔' : '✘'} 맵 {i + 1}
+          </button>
+        ))}
+      </div>
+      <div className="transport">
+        <button className="tbtn" onClick={() => seek(0)} title="처음으로">⏮</button>
+        <button className="tbtn" onClick={() => stepBy(-1)} title="한 턴 뒤로 (←)">◀</button>
+        <button className="tbtn main" onClick={togglePlay} title="재생/멈춤 (Space)">{playing ? '⏸' : '▶'}</button>
+        <button className="tbtn" onClick={() => stepBy(1)} title="한 턴 앞으로 (→)">▶▏</button>
+        <button className="tbtn" onClick={skipToEnd} title="끝으로">⏭</button>
+      </div>
+      <input
+        className="scrub"
+        type="range"
+        min={0}
+        max={len}
+        value={step}
+        onChange={(e) => seek(Number(e.target.value))}
+        aria-label="재생 위치"
+      />
+      <span className="step-count">
+        {step}/{len}
+      </span>
+      <div className="speeds">
+        {SPEEDS.map((sp) => (
+          <button key={sp} className={sp === speed ? 'sp active' : 'sp'} onClick={() => setSpeed(sp)}>
+            {sp}×
+          </button>
+        ))}
+      </div>
+      <button className="btn ghost small" onClick={backToPlan} title="재생을 끝내고 코드를 고쳐요">
+        ✎ 코드 고치기
+      </button>
     </div>
   );
 }
 
-/** 왼쪽 위 퀘스트 추적기 — 클릭하면 마법서의 미션 탭이 열린다 */
-export function MissionBanner() {
-  const done = useStore(gameStore, (s) => s.missionsDone);
+// ---------------------------------------------------------------- 결과 카드
+
+export function ResultCard() {
   const phase = useStore(gameStore, (s) => s.phase);
-  const cur = MISSIONS.find((m) => !done.includes(m.id));
-  if (!cur || phase !== 'playing') return null;
-  const idx = MISSIONS.indexOf(cur);
-  return (
-    <div key={cur.id} className="quest" onClick={() => uiStore.set({ panelOpen: true, tab: 'missions' })}>
-      <div className="quest-head">
-        <span className="quest-tag">퀘스트</span>
-        <span className="quest-count">
-          {idx + 1} / {MISSIONS.length}
-        </span>
+  const hidden = useStore(gameStore, (s) => s.resultHidden);
+  const score = useStore(gameStore, (s) => s.score);
+  const result = useStore(gameStore, (s) => s.result);
+  const newRecord = useStore(gameStore, (s) => s.newRecord);
+  const view = useStore(gameStore, (s) => s.view);
+  if (phase !== 'done' || hidden || !score || !result) return null;
+
+  const next = nextStageId();
+  const failIdx = result.runs.findIndex((r) => !r.summary.cleared);
+  const someCleared = result.runs.some((r) => r.summary.cleared);
+  const err = result.runs.find((r) => r.error);
+
+  if (score.cleared) {
+    return (
+      <div className="result-wrap">
+        <div className="result-card win">
+          <div className="result-stars">
+            {[0, 1, 2].map((i) => (
+              <StarIcon key={i} on={i < score.stars} className={`rs rs${i}`} />
+            ))}
+          </div>
+          <h2 className="result-title">클리어!</h2>
+          {newRecord && <div className="record">새 기록!</div>}
+          <ul className="checks">
+            {score.checks.map((c) => (
+              <li key={c.id} className={c.ok ? 'ok' : 'no'}>
+                <StarIcon on={c.ok} />
+                {c.label}
+                {c.id === 'lines' && c.label.startsWith('코드') && <small> (지금 {score.lines}줄)</small>}
+              </li>
+            ))}
+          </ul>
+          <div className="result-actions">
+            {next && (
+              <button className="btn gold" autoFocus onClick={() => openStage(next)}>
+                다음 스테이지 ▶
+              </button>
+            )}
+            {!next && (
+              <button className="btn gold" autoFocus onClick={goSelect}>
+                스테이지 목록
+              </button>
+            )}
+            <button className="btn ghost" onClick={backToPlan}>
+              ✎ 더 줄여 보기
+            </button>
+            <button className="btn ghost" onClick={hideResult}>
+              닫기
+            </button>
+          </div>
+        </div>
       </div>
-      <div className="quest-title">{cur.title}</div>
-      <div className="quest-desc">{cur.desc}</div>
-      <div className="quest-more">클릭하면 힌트를 볼 수 있어요 ▸</div>
+    );
+  }
+
+  return (
+    <div className="result-wrap">
+      <div className="result-card lose">
+        <h2 className="result-title">아쉬워요!</h2>
+        <ul className="seed-results">
+          {result.runs.map((r, i) => (
+            <li key={i} className={r.summary.cleared ? 'ok' : 'no'}>
+              <b>{r.summary.cleared ? '✔' : '✘'} 맵 {i + 1}</b> {REASON_TEXT[r.summary.reason]}
+              {r.summary.reason === 'turn_limit' && <small> ({r.summary.turns}턴 사용)</small>}
+              {i === view && <span className="viewing">보는 중</span>}
+            </li>
+          ))}
+        </ul>
+        {err && (
+          <div className="err-box">
+            {err.line ? <b>{err.line}번째 줄: </b> : null}
+            {err.error}
+          </div>
+        )}
+        {!err && someCleared && (
+          <div className="tip-line">💡 맵마다 ? 칸이나 길이가 달라요. 한 맵에만 맞춘 코드가 아닌지, look() 으로 살펴보며 움직여 보세요.</div>
+        )}
+        <div className="result-actions">
+          <button className="btn primary" autoFocus onClick={backToPlan}>
+            ✎ 코드 고치기
+          </button>
+          {failIdx >= 0 && (
+            <button className="btn ghost" onClick={() => viewSeed(failIdx)}>
+              ↻ 맵 {failIdx + 1} 다시 보기
+            </button>
+          )}
+          <button className="btn ghost" onClick={hideResult}>
+            닫기
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

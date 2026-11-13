@@ -1,83 +1,72 @@
-// 코드 슬롯(학생이 작성한 파이썬 스킬) 저장소. 브라우저 localStorage 에 자동 저장한다.
+// 스테이지별 학생 코드와 진행 상황(별). 브라우저 localStorage 에 자동 저장한다.
+import { STAGES, getStage } from '../stages';
 import { createStore } from './store';
 
-export interface CodeSlot { name: string; code: string }
+const CODE_KEY = 'programe.code.v2';
+const PROGRESS_KEY = 'programe.progress.v2';
 
-export const DEFAULT_SLOTS: CodeSlot[] = [
-  {
-    name: '기본 마법',
-    code: `# 키 1 을 누르면 이 함수가 실행돼요.
-# enemy 는 가장 가까운 적이에요. (hp, max_hp, type, distance)
-
-def attack_strategy(enemy):
-    if enemy.hp < 30:
-        cast("fireball")
-    else:
-        cast("icebolt")
-`,
-  },
-  {
-    name: '약점 공략',
-    code: `# 적의 종류(enemy.type)에 따라 약점 속성을 골라 보세요!
-# 종류: "slime", "fly", "golem"  (적이 없으면 "none")
-
-def attack_strategy(enemy):
-    print("상대:", enemy.type, "HP", enemy.hp)
-    if enemy.type == "slime":
-        cast("fireball")
-    # TODO: 날벌레와 골렘은 무엇에 약할까요? 도움말 탭을 확인!
-    else:
-        cast("fireball")
-`,
-  },
-  {
-    name: '응급 처치',
-    code: `# HP 가 적을 때는 회복, 아니면 공격!
-
-def attack_strategy(enemy):
-    if get_player_hp() < 50:
-        cast("heal")
-    elif get_player_mp() >= 24:
-        cast("fireball")
-        cast("fireball")
-    else:
-        print("MP 가 부족해요...")
-`,
-  },
-];
-
-const KEY = 'programe.slots.v1';
-
-function load(): CodeSlot[] {
+function read<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as CodeSlot[];
-      if (Array.isArray(parsed) && parsed.length === 3) return parsed;
-    }
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw) as T;
   } catch {
-    /* 저장소를 쓸 수 없으면 기본값 */
+    /* 저장소를 쓸 수 없거나 망가졌으면 기본값 */
   }
-  return DEFAULT_SLOTS.map((s) => ({ ...s }));
+  return fallback;
+}
+function write(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* 무시 */
+  }
 }
 
-export const codeStore = createStore<{ slots: CodeSlot[] }>({ slots: load() });
+// ---------------- 코드 ----------------
+export const codeStore = createStore<{ code: Record<string, string> }>({ code: read(CODE_KEY, {}) });
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 codeStore.subscribe(() => {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(codeStore.get().slots));
-    } catch {
-      /* 무시 */
-    }
-  }, 300);
+  saveTimer = setTimeout(() => write(CODE_KEY, codeStore.get().code), 300);
 });
 
-export function setSlotCode(i: number, code: string) {
-  codeStore.set((s) => ({ slots: s.slots.map((slot, j) => (j === i ? { ...slot, code } : slot)) }));
+export const codeFor = (stageId: string) => codeStore.get().code[stageId] ?? getStage(stageId)?.starter ?? '';
+
+export function setCode(stageId: string, code: string) {
+  codeStore.set((s) => ({ code: { ...s.code, [stageId]: code } }));
 }
-export function resetSlot(i: number) {
-  codeStore.set((s) => ({ slots: s.slots.map((slot, j) => (j === i ? { ...DEFAULT_SLOTS[i] } : slot)) }));
+
+export function resetCode(stageId: string) {
+  setCode(stageId, getStage(stageId).starter);
+}
+
+// ---------------- 진행 상황 ----------------
+export interface StageProgress {
+  /** 받은 최고 별 수 (0~3), 클리어하면 1 이상 */
+  stars: number;
+}
+
+export const progressStore = createStore<{ stages: Record<string, StageProgress> }>({ stages: read(PROGRESS_KEY, {}) });
+progressStore.subscribe(() => write(PROGRESS_KEY, progressStore.get().stages));
+
+/** 더 많은 별을 받았을 때만 기록. 새 기록이면 true */
+export function recordStars(stageId: string, stars: number): boolean {
+  const prev = progressStore.get().stages[stageId]?.stars ?? 0;
+  if (stars <= prev) return false;
+  progressStore.set((s) => ({ stages: { ...s.stages, [stageId]: { stars } } }));
+  return true;
+}
+
+export const starsOf = (stageId: string) => progressStore.get().stages[stageId]?.stars ?? 0;
+
+/** 첫 스테이지이거나 바로 앞 스테이지를 클리어했으면 열린다 */
+export function isUnlocked(stageId: string, stages = progressStore.get().stages): boolean {
+  const i = STAGES.findIndex((s) => s.id === stageId);
+  if (i <= 0) return true;
+  return (stages[STAGES[i - 1].id]?.stars ?? 0) > 0;
+}
+
+export function resetProgress() {
+  progressStore.set({ stages: {} });
 }

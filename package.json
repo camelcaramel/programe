@@ -10,8 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "map": "node scripts/generateMap.mjs"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fontsource/jua": "^5.3.0",

@@ -1,7 +1,8 @@
-// Monaco 를 CDN 없이 로컬 번들로 사용하고, 학생용 자동완성/테마를 등록한다.
+// Monaco 를 CDN 없이 로컬 번들로 사용하고, 학생용 자동완성/도움말/테마를 등록한다.
 import * as monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
-import { MONSTERS, SKILLS, SKILL_NAMES } from '../game/data';
+import { MONSTER_KINDS } from '../sim';
+import { API_DOCS } from './apiDocs';
 
 (self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = {
   getWorker: () => new EditorWorker(),
@@ -40,54 +41,41 @@ monaco.editor.defineTheme('programe', {
   },
 });
 
-const API_DOCS: { label: string; insert: string; doc: string; kind: 'fn' | 'field' }[] = [
-  { label: 'cast', insert: 'cast("${1|fireball,icebolt,heal|}")', doc: '스킬을 발동해요. 한 번 실행에 최대 3번.', kind: 'fn' },
-  { label: 'get_enemy_hp', insert: 'get_enemy_hp()', doc: '대상 적의 현재 HP (enemy.hp 와 같아요)', kind: 'fn' },
-  { label: 'get_player_hp', insert: 'get_player_hp()', doc: '내 현재 HP', kind: 'fn' },
-  { label: 'get_player_mp', insert: 'get_player_mp()', doc: '내 현재 MP', kind: 'fn' },
-  { label: 'print', insert: 'print(${1})', doc: '아래 콘솔에 값을 출력해요', kind: 'fn' },
-];
-const ENEMY_FIELDS = [
-  { label: 'hp', doc: '적의 현재 HP' },
-  { label: 'max_hp', doc: '적의 최대 HP' },
-  { label: 'type', doc: `적의 종류: ${Object.keys(MONSTERS).map((k) => `"${k}"`).join(', ')} (적이 없으면 "none")` },
-  { label: 'distance', doc: '나와 적 사이의 거리 (칸)' },
-  { label: 'exists', doc: '대상 적이 있으면 True' },
-];
+/** 지금 스테이지에서 쓸 수 있는 명령 (자동완성에 이것만 보여 준다) */
+let allowed: string[] = API_DOCS.map((a) => a.name);
+export function setAllowedApi(names: string[]) {
+  allowed = names;
+}
+
+const DIRS = ['up', 'down', 'left', 'right'];
+const LOOK_VALUES = ['empty', 'wall', 'exit', 'chest', 'key', 'door', ...MONSTER_KINDS];
 
 monaco.languages.registerCompletionItemProvider('python', {
-  triggerCharacters: ['.', '"'],
+  triggerCharacters: ['"', "'"],
   provideCompletionItems(model, position) {
     const word = model.getWordUntilPosition(position);
     const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
     const before = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
     const K = monaco.languages.CompletionItemKind;
+    const words = (list: string[], doc?: string) => ({
+      suggestions: list.map((w) => ({ label: w, kind: K.EnumMember, insertText: w, documentation: doc, range })),
+    });
 
-    if (/enemy\.\w*$/.test(before)) {
-      return { suggestions: ENEMY_FIELDS.map((f) => ({ label: f.label, kind: K.Field, insertText: f.label, documentation: f.doc, range })) };
-    }
-    if (/cast\(["']\w*$/.test(before)) {
-      return {
-        suggestions: SKILL_NAMES.map((n) => ({ label: n, kind: K.EnumMember, insertText: n, documentation: `${SKILLS[n].label} · MP ${SKILLS[n].mp} · ${SKILLS[n].desc}`, range })),
-      };
-    }
-    if (/==\s*["']\w*$/.test(before)) {
-      return { suggestions: Object.keys(MONSTERS).map((k) => ({ label: k, kind: K.EnumMember, insertText: k, range })) };
-    }
+    if (/cast\(\s*["']\w*$/.test(before)) return words(['fireball', 'icebolt'], 'fireball = 불(슬라임 약점), icebolt = 얼음(박쥐·외눈 거인 약점)');
+    if (/(look\(|cast\(\s*["']\w+["']\s*,)\s*["']\w*$/.test(before)) return words(DIRS, '방향');
+    if (/[=!]=\s*["']\w*$/.test(before)) return words(LOOK_VALUES, 'look() 이 돌려주는 값');
+    if (/["']\w*$/.test(before)) return { suggestions: [] };
+
     return {
-      suggestions: [
-        ...API_DOCS.map((a) => ({
-          label: a.label, kind: K.Function, insertText: a.insert, documentation: a.doc, range,
-          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        })),
-        { label: 'enemy', kind: K.Variable, insertText: 'enemy', documentation: '가장 가까운 적', range },
-        {
-          label: 'if enemy.type ==', kind: K.Snippet, range,
-          insertText: 'if enemy.type == "${1|slime,fly,golem|}":\n    cast("${2|fireball,icebolt,heal|}")',
-          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-          documentation: '적 종류에 따라 스킬 고르기',
-        },
-      ],
+      suggestions: API_DOCS.filter((a) => allowed.includes(a.name)).map((a) => ({
+        label: a.name,
+        kind: K.Function,
+        insertText: a.snippet,
+        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+        detail: a.sig,
+        documentation: a.doc,
+        range,
+      })),
     };
   },
 });
@@ -96,10 +84,10 @@ monaco.languages.registerHoverProvider('python', {
   provideHover(model, position) {
     const w = model.getWordAtPosition(position);
     if (!w) return null;
-    const api = API_DOCS.find((a) => a.label === w.word);
-    const skill = SKILLS[w.word as keyof typeof SKILLS];
-    const text = api ? `**${api.label}** — ${api.doc}` : skill ? `**${w.word}** (${skill.label}) · MP ${skill.mp} · ${skill.desc}` : null;
-    return text ? { contents: [{ value: text }] } : null;
+    const api = API_DOCS.find((a) => a.name === w.word);
+    if (!api) return null;
+    const locked = !allowed.includes(api.name) ? '\n\n🔒 이 스테이지에서는 아직 쓸 수 없어요.' : '';
+    return { contents: [{ value: `**${api.sig}** — ${api.doc}${locked}` }] };
   },
 });
 

@@ -2,10 +2,10 @@ import { useEffect, useRef } from 'react';
 import { createGame } from '../game/config';
 import { python } from '../python/runner';
 import { gameStore, isTyping, uiStore } from '../state/store';
-import { codeStore } from '../state/codeStore';
-import { Hud, MissionBanner } from './Hud';
+import { codeStore, progressStore } from '../state/codeStore';
+import { stepBy, togglePlay } from '../game/play';
+import { ReplayBar, ResultCard, StageHud } from './Hud';
 import { SidePanel } from './SidePanel';
-import { Hotbar, KeyHints } from './Hotbar';
 import { Overlays, Toasts } from './Overlays';
 
 export default function App() {
@@ -13,16 +13,16 @@ export default function App() {
 
   useEffect(() => {
     python.start();
-    // 캔버스 글씨(피해량 등)도 UI 와 같은 글꼴을 쓰도록 미리 불러 둔다
-    document.fonts?.load('20px Jua', '0123456789+-약점효과가별로레벨업코드오류부족 HP MP LEVEL UP!').catch(() => {});
+    // 캔버스 글씨도 UI 와 같은 글꼴을 쓰도록 미리 불러 둔다
+    document.fonts?.load('40px Jua', '0123456789+-?쿵효과없음').catch(() => {});
     const game = createGame(host.current!);
-    if (import.meta.env.DEV) Object.assign(window, { __game: game, __stores: { gameStore, codeStore, uiStore } });
+    if (import.meta.env.DEV) Object.assign(window, { __game: game, __stores: { gameStore, codeStore, uiStore, progressStore } });
 
     // 패널을 접고 펼 때 캔버스 크기 다시 맞추기
     const ro = new ResizeObserver(() => game.scale.refresh());
     ro.observe(host.current!);
 
-    // 캔버스를 클릭하면 에디터 포커스를 빼서 바로 게임 조작이 되게
+    // 캔버스를 클릭하면 에디터 포커스를 빼서 단축키가 바로 먹게
     const canvasDown = () => (document.activeElement as HTMLElement | null)?.blur();
     host.current!.addEventListener('pointerdown', canvasDown);
 
@@ -37,8 +37,12 @@ export default function App() {
         (document.activeElement as HTMLElement).blur();
         return;
       }
-      // 버튼을 클릭한 뒤 Space 가 그 버튼을 다시 누르지 않게 포커스만 뺀다 (preventDefault 하면 Phaser 가 키를 무시함)
-      if (!typing && e.key === ' ' && document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
+      if (typing || gameStore.get().screen !== 'play') return;
+      if (e.key === ' ' && !(document.activeElement instanceof HTMLButtonElement)) {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === 'ArrowRight') stepBy(1);
+      else if (e.key === 'ArrowLeft') stepBy(-1);
     };
     window.addEventListener('keydown', onKey);
 
@@ -52,15 +56,13 @@ export default function App() {
   return (
     <div className="app">
       <div className="main">
-        {/* 게임 화면 위에 HUD·퀘스트·핫바가 떠 있는 구조 */}
         <div className="stage">
           <div className="canvas" ref={host} />
           <div className="stage-vignette" />
-          <Hud />
-          <MissionBanner />
+          <StageHud />
           <Toasts />
-          <Hotbar />
-          <KeyHints />
+          <ReplayBar />
+          <ResultCard />
         </div>
         <SidePanel />
       </div>
