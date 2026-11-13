@@ -23,6 +23,13 @@ const stopTimer = () => {
   timer = undefined;
 };
 
+/**
+ * 모두 통과했을 때는 맵 1 → 2 → 3 을 차례로 이어서 재생한다.
+ * (맵 1 에만 ? 칸이 비어 있으면, 맵 1 만 보여 줄 때 "슬라임이 사라졌다"고 느끼기 쉬움)
+ * 사용자가 재생 위치나 맵을 직접 고르면 멈춘다.
+ */
+let chainAll = false;
+
 export function goTitle() {
   stopTimer();
   gameStore.set({ screen: 'title', playing: false });
@@ -35,6 +42,7 @@ export function goSelect() {
 
 export function openStage(stageId: string) {
   stopTimer();
+  chainAll = false;
   const stage = getStage(stageId);
   gameStore.set({
     screen: 'play',
@@ -59,7 +67,7 @@ export function nextStageId(): string | null {
   return i >= 0 && i + 1 < STAGES.length ? STAGES[i + 1].id : null;
 }
 
-/** 코드 실행: 모든 시드를 돌리고, 첫 번째로 실패한 맵(없으면 맵 1)부터 재생 */
+/** 코드 실행: 모든 시드를 돌리고, 실패한 맵이 있으면 그 맵을, 모두 통과면 맵 1부터 차례로 재생 */
 export async function runCode() {
   const s = gameStore.get();
   if (s.screen !== 'play' || s.phase === 'running') return;
@@ -104,6 +112,9 @@ export async function runCode() {
   if (firstErr) uiStore.set({ codeError: { line: firstErr.line, message: firstErr.error ?? '' } });
 
   const newRecord = score.cleared && recordStars(s.stageId, score.stars);
+  chainAll = score.cleared && result.runs.length > 1;
+  if (chainAll) log('ok', '모두 통과! 맵 1부터 차례로 보여 줄게요.', '실행');
+  else if (failIdx >= 0 && result.runs.length > 1) log('info', '맵 ' + (failIdx + 1) + '에서 실패했어요. 그 장면을 보여 줄게요.', '실행');
 
   gameStore.set({ phase: 'replay', result, score, newRecord, view: failIdx >= 0 ? failIdx : 0, step: 0, playing: true });
   schedule();
@@ -120,16 +131,29 @@ function tick() {
   const s = gameStore.get();
   const trace = currentTrace(s);
   if (s.step >= trace.length) {
-    gameStore.set({ playing: false, phase: 'done' });
+    finishView();
     return;
   }
   gameStore.set({ step: s.step + 1 });
   if (s.step + 1 >= trace.length) {
-    // 마지막 장면을 잠깐 보여 준 뒤 결과 카드
-    timer = setTimeout(() => gameStore.set({ playing: false, phase: 'done' }), 650 / s.speed);
+    // 마지막 장면을 잠깐 보여 준 뒤 다음 맵 또는 결과 카드
+    timer = setTimeout(finishView, 650 / s.speed);
     return;
   }
   schedule();
+}
+
+/** 지금 맵 재생이 끝났을 때: 이어 볼 맵이 있으면 다음 맵, 아니면 결과 카드 */
+function finishView() {
+  const s = gameStore.get();
+  const total = s.result?.runs.length ?? 0;
+  if (chainAll && s.view + 1 < total) {
+    gameStore.set({ view: s.view + 1, step: 0, playing: true, phase: 'replay' });
+    schedule();
+    return;
+  }
+  chainAll = false;
+  gameStore.set({ playing: false, phase: 'done' });
 }
 
 // ---------------- 재생 조작 ----------------
@@ -156,6 +180,7 @@ export function togglePlay() {
 export function stepBy(delta: number) {
   if (!canReplay()) return;
   stopTimer();
+  chainAll = false;
   const s = gameStore.get();
   const len = currentTrace(s).length;
   gameStore.set({ playing: false, phase: 'replay', step: Math.max(0, Math.min(len, s.step + delta)) });
@@ -164,6 +189,7 @@ export function stepBy(delta: number) {
 export function seek(step: number) {
   if (!canReplay()) return;
   stopTimer();
+  chainAll = false;
   const len = currentTrace().length;
   gameStore.set({ playing: false, phase: 'replay', step: Math.max(0, Math.min(len, step)) });
 }
@@ -171,6 +197,7 @@ export function seek(step: number) {
 export function skipToEnd() {
   if (!canReplay()) return;
   stopTimer();
+  chainAll = false;
   gameStore.set({ playing: false, phase: 'done', resultHidden: false, step: currentTrace().length });
 }
 
@@ -183,6 +210,7 @@ export function viewSeed(i: number) {
   const s = gameStore.get();
   if (!s.result || i < 0 || i >= s.result.runs.length) return;
   stopTimer();
+  chainAll = false;
   const run = s.result.runs[i];
   uiStore.set({ codeError: run.error ? { line: run.line, message: run.error } : null });
   gameStore.set({ view: i, step: 0, playing: true, phase: 'replay', resultHidden: false });
@@ -196,5 +224,6 @@ export function hideResult() {
 /** 결과를 닫고 다시 코드를 고치는 단계로 */
 export function backToPlan() {
   stopTimer();
+  chainAll = false;
   gameStore.set({ phase: 'plan', playing: false, step: 0, view: 0, resultHidden: false });
 }
