@@ -473,3 +473,4 @@ kbd {
   .brief-goal { margin-bottom: 2px; }
   .console { height: 110px; }
 }
+.btn-pill.grid-on { color: var(--gold-light); }

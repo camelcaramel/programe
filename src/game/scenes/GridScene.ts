@@ -36,6 +36,7 @@ export class GridScene extends Phaser.Scene {
   private objLayer!: Phaser.GameObjects.Container;
   /** 잠깐 보였다 사라지는 것들(글자·불꽃·사라지는 문/열쇠/몬스터). 다시 그릴 때 통째로 비운다 */
   private fxLayer!: Phaser.GameObjects.Container;
+  private guideLayer: Phaser.GameObjects.Container | null = null;
   private player!: Phaser.GameObjects.Sprite;
   private things = new Map<string, Phaser.GameObjects.Sprite | Phaser.GameObjects.Image>();
   private hpBars = new Map<string, Phaser.GameObjects.Graphics>();
@@ -61,15 +62,22 @@ export class GridScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#2a2236');
     this.cameras.main.setRoundPixels(true);
     this.terrainLayer = this.add.container(0, 0);
-    this.objLayer = this.add.container(0, 0);
+    this.objLayer = this.add.container(0, 0).setDepth(2);
     this.player = this.add.sprite(0, 0, 'td', TILE.player).setDepth(10).setVisible(false);
     this.objLayer.add(this.player);
-    this.fxLayer = this.add.container(0, 0);
+    this.fxLayer = this.add.container(0, 0).setDepth(3);
 
     const unsubGame = gameStore.subscribe(() => this.sync());
-    const applyMute = () => (this.sound.mute = uiStore.get().muted);
-    applyMute();
-    const unsubUi = uiStore.subscribe(applyMute);
+    let grid = uiStore.get().showGrid;
+    const applyUi = () => {
+      this.sound.mute = uiStore.get().muted;
+      if (uiStore.get().showGrid !== grid) {
+        grid = uiStore.get().showGrid;
+        this.fit();
+      }
+    };
+    applyUi();
+    const unsubUi = uiStore.subscribe(applyUi);
     this.scale.on('resize', this.fit, this);
     // 씬이 끝나거나(shutdown) 게임째로 없어질 때(destroy, 개발 중 HMR 포함) 구독을 꼭 푼다
     let cleaned = false;
@@ -93,11 +101,13 @@ export class GridScene extends Phaser.Scene {
     if (s.screen !== 'play' || s.levels.length === 0) {
       this.objLayer.setVisible(false);
       this.fxLayer.setVisible(false);
+      this.guideLayer?.setVisible(false);
       this.terrainLayer.setVisible(false);
       return;
     }
     this.objLayer.setVisible(true);
     this.fxLayer.setVisible(true);
+    this.guideLayer?.setVisible(true);
     this.terrainLayer.setVisible(true);
 
     const showRun = (s.phase === 'replay' || s.phase === 'done') && !!s.result;
@@ -380,11 +390,40 @@ export class GridScene extends Phaser.Scene {
     const h = this.scale.height;
     const top = 96; // 위 HUD
     const bottom = 96; // 아래 재생 막대
-    const zx = (w - 48) / (this.level.width * T);
-    const zy = (h - top - bottom) / (this.level.height * T);
+    // 위·왼쪽 좌표 번호가 들어갈 자리(1칸씩)까지 함께 맞춘다
+    const zx = (w - 48) / ((this.level.width + 2) * T);
+    const zy = (h - top - bottom) / ((this.level.height + 2) * T);
     const z = Math.max(1, Math.min(7, Math.floor(Math.min(zx, zy))));
     cam.setZoom(z);
-    cam.centerOn((this.level.width * T) / 2, (this.level.height * T) / 2 - (top - bottom) / (2 * z));
+    cam.centerOn((this.level.width * T) / 2 - T / 2, (this.level.height * T) / 2 - T / 2 - (top - bottom) / (2 * z));
+    this.drawGuides(z);
+  }
+
+  /**
+   * 칸 세기를 돕는 옅은 격자와 좌표 번호 (get_pos() 와 같은 0부터 시작하는 x, y).
+   * 글자 크기를 화면 기준으로 맞추므로 확대 배율이 바뀔 때마다 다시 그린다.
+   */
+  private drawGuides(z: number) {
+    this.guideLayer?.destroy(true);
+    this.guideLayer = this.add.container(0, 0).setDepth(1); // 바닥 위, 캐릭터 아래
+    if (!this.level || !uiStore.get().showGrid) return;
+    const { width, height, terrain } = this.level;
+
+    // 1px 선은 픽셀 확대에서 군데군데 사라지므로, 바닥 칸을 체스판처럼 번갈아 살짝 어둡게 칠한다
+    const g = this.add.graphics();
+    g.fillStyle(0x2a2236, 0.13);
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) if (terrain[y][x] !== 'wall' && (x + y) % 2 === 0) g.fillRect(x * T, y * T, T, T);
+    this.guideLayer.add(g);
+
+    const label = (x: number, y: number, text: string) =>
+      this.add
+        .text(x, y, text, { fontFamily: FONT, fontSize: '48px', color: '#cfc8e6', stroke: '#2a2236', strokeThickness: 8 })
+        .setOrigin(0.5)
+        .setScale(14 / 48 / z);
+    for (let x = 0; x < width; x++) this.guideLayer.add(label(cx(x), -T / 2, String(x)));
+    for (let y = 0; y < height; y++) this.guideLayer.add(label(-T / 2, cy(y), String(y)));
+    this.guideLayer.add(label(-T / 2, -T / 2, 'y\\x').setColor('#8d8aa6'));
   }
 }
 

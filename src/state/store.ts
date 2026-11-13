@@ -98,14 +98,18 @@ export interface UiState {
   codeError: CodeError | null;
   pythonStatus: 'loading' | 'ready' | 'error';
   muted: boolean;
+  /** 맵에 격자와 좌표 번호 표시 */
+  showGrid: boolean;
 }
 
 const MUTE_KEY = 'programe.muted';
-function loadMuted() {
+const GRID_KEY = 'programe.grid';
+function loadFlag(key: string, fallback: boolean) {
   try {
-    return localStorage.getItem(MUTE_KEY) === '1';
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v === '1';
   } catch {
-    return false;
+    return fallback;
   }
 }
 
@@ -114,12 +118,14 @@ export const uiStore = createStore<UiState>({
   tab: 'code',
   codeError: null,
   pythonStatus: 'loading',
-  muted: loadMuted(),
+  muted: loadFlag(MUTE_KEY, false),
+  showGrid: loadFlag(GRID_KEY, true),
 });
 
 uiStore.subscribe(() => {
   try {
     localStorage.setItem(MUTE_KEY, uiStore.get().muted ? '1' : '0');
+    localStorage.setItem(GRID_KEY, uiStore.get().showGrid ? '1' : '0');
   } catch {
     /* 저장소를 못 쓰면 무시 */
   }

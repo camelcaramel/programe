@@ -47,6 +47,7 @@ function useBoard() {
 export function StageHud() {
   const stageId = useStore(gameStore, (s) => s.stageId);
   const muted = useStore(uiStore, (s) => s.muted);
+  const showGrid = useStore(uiStore, (s) => s.showGrid);
   const raw = useBoard();
   if (!raw) return null;
   const b = JSON.parse(raw) as {
@@ -94,6 +95,13 @@ export function StageHud() {
           {b.turn}
           <small>/{b.maxTurns}</small>
         </div>
+        <button
+          className={showGrid ? 'pill btn-pill grid-on' : 'pill btn-pill'}
+          title={showGrid ? '격자·좌표 숨기기' : '격자·좌표 보기'}
+          onClick={() => uiStore.set({ showGrid: !showGrid })}
+        >
+          #
+        </button>
         <button className="pill btn-pill" title={muted ? '소리 켜기' : '소리 끄기'} onClick={() => uiStore.set({ muted: !muted })}>
           {muted ? '🔇' : '🔊'}
         </button>

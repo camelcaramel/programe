@@ -334,26 +334,54 @@ while True:
   {
     id: 'stage-10',
     title: '보물 창고',
-    concept: '이중 for',
-    goal: '5×5 창고 곳곳에 보물상자가 있어요. 모든 칸을 지나가며 상자를 다 열고 출구로!',
-    hint: '한 줄을 오른쪽으로 다 가고, 한 칸 내려와서 다음 줄은 왼쪽으로… 줄 번호(row)가 짝수인지(row % 2 == 0) 보면 방향을 고를 수 있어요.',
-    note: '? 칸은 실행할 때마다 보물상자이거나 빈칸이에요.',
+    concept: '이중 for · 종합',
+    goal: '5×5 창고 곳곳에 보물상자가 있고, 슬라임도 숨어 있어요. 모든 칸을 지나가며 상자를 다 열고 출구로!',
+    hint: '한 줄을 오른쪽으로 다 가고, 한 칸 내려와서 다음 줄은 왼쪽으로… row % 2 == 0 이면 짝수 줄이에요. "가려는 쪽을 살펴보고, 슬라임이면 처치한 뒤 한 칸 가기"를 def step(d): 함수로 만들어 두면 편해요.',
+    note: '? 칸은 실행할 때마다 보물상자 · 빈칸 · 슬라임 중 하나로 바뀌어요.',
     api: ALL_API,
     seeds: [1, 2, 3],
-    stars: { lines: 9 },
-    random: { '?': ['c', '.'] },
+    stars: { lines: 18 },
+    random: { '?': ['c', 'c', '.', 's'] },
     map: ['#######', '#S????#', '#?????#', '#?????#', '#?????#', '#?????E', '#######'],
-    starter: `# for 안에 for 를 넣을 수 있어요 (이중 for).
-# 아래 코드는 "오른쪽 4칸 + 아래 1칸"을 2번 해요. row 는 0, 1 로 바뀌어요.
-# 상자를 모두 열려면 오른쪽으로 갔다가, 다음 줄은 왼쪽으로 와야 해요.
+    starter: `# 마지막 스테이지! 지금까지 배운 것을 모두 써 보세요.
+# for 안에 for 를 넣을 수 있어요 (이중 for). row 는 0, 1, 2 ... 로 바뀌어요.
+# 슬라임이 숨어 있어요. 한 칸 가기 전에 그쪽을 살펴보는 함수를 만들어 두면 편해요.
+
+def step(d):
+    # TODO: d 쪽에 슬라임이 있으면 먼저 처치하기
+    if d == "right":
+        move_right()
+    elif d == "left":
+        move_left()
+    else:
+        move_down()
 
 for row in range(2):
-    print("row =", row)
     for i in range(4):
-        move_right()
-    move_down()
+        step("right")
+    step("down")
 `,
-    solution: `for row in range(5):
+    solution: `def step(d):
+    if look(d) == "slime":
+        cast("fireball", d)
+    if d == "right":
+        move_right()
+    elif d == "left":
+        move_left()
+    else:
+        move_down()
+
+for row in range(5):
+    for i in range(4):
+        if row % 2 == 0:
+            step("right")
+        else:
+            step("left")
+    if row < 4:
+        step("down")
+move_right()
+`,
+    hardcoded: `for row in range(5):
     for i in range(4):
         if row % 2 == 0:
             move_right()
