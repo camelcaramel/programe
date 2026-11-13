@@ -1,5 +1,6 @@
 # programe 파이썬 런타임 (Pyodide, Web Worker 안에서 한 번 실행됨)
 # 학생 코드는 제한된 builtins 와 게임 API 만 볼 수 있다.
+import ast as _ast
 import builtins as _b
 import json
 import sys
@@ -156,6 +157,23 @@ STAGE_API_NAMES = (
 )
 
 
+class _BareExceptFix(_ast.NodeTransformer):
+    """학생 코드의 `except:` 를 `except Exception:` 으로 바꾼다.
+    그래야 게임 종료(_Stop)와 시간 초과(_Timeout)를 학생 코드가 삼키지 못한다."""
+
+    def visit_ExceptHandler(self, node):
+        self.generic_visit(node)
+        if node.type is None:
+            node.type = _ast.copy_location(_ast.Name(id="Exception", ctx=_ast.Load()), node)
+        return node
+
+
+def _compile_student(code_str):
+    tree = _ast.parse(code_str, FILENAME, "exec")
+    tree = _ast.fix_missing_locations(_BareExceptFix().visit(tree))
+    return compile(tree, FILENAME, "exec")
+
+
 def _student_line():
     f = sys._getframe(1)
     while f is not None:
@@ -250,7 +268,7 @@ def _run_stage(code_str, api, limits_json):
         return json.dumps({"ok": ok, "error": message, "line": line, "kind": kind, "stop": stop, "out": out, "steps": steps[0]})
 
     try:
-        code = compile(code_str, FILENAME, "exec")
+        code = _compile_student(code_str)
     except SyntaxError as e:
         hint = "들여쓰기나 콜론(:), 괄호를 확인해 보세요."
         if isinstance(e, IndentationError):

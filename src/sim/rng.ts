@@ -9,7 +9,11 @@ export interface Rng {
 }
 
 export function createRng(seed: number): Rng {
+  // 작은 시드(1, 2, 3 …)끼리 첫 값이 비슷하게 나오지 않도록 시드를 먼저 섞는다 (murmur3 fmix)
   let a = seed >>> 0;
+  a = Math.imul(a ^ (a >>> 16), 0x85ebca6b);
+  a = Math.imul(a ^ (a >>> 13), 0xc2b2ae35);
+  a = (a ^ (a >>> 16)) >>> 0;
   const next = () => {
     a = (a + 0x6d2b79f5) >>> 0;
     let t = a;

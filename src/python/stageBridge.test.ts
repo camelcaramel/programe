@@ -124,12 +124,25 @@ print("여기는 실행되면 안 됨")
     expect(r.runs[0].summary.turns).toBe(1);
   });
 
-  it('맨 except 로 잡아 계속 돌아도 클리어 결과는 유지 (시간 초과로 끝남)', () => {
+  it('맨 except: 로도 게임 종료를 삼킬 수 없다', () => {
     const r = run('while True:\n    try:\n        move_right()\n    except:\n        pass\n', stage(['SE'], { seeds: [1] }), {
       time_limit: 0.2,
     });
     expect(r.runs[0].summary.reason).toBe('exit');
+    expect(r.runs[0].error).toBeNull();
+  });
+
+  it('맨 except: 로 무한 루프 시간 초과도 삼킬 수 없다', () => {
+    const r = run('while True:\n    try:\n        pass\n    except:\n        pass\n', stage(['S.E'], { seeds: [1] }), {
+      time_limit: 0.2,
+    });
     expect(r.runs[0].kind).toBe('timeout');
+  });
+
+  it('except: 안의 일반 오류 처리는 그대로 동작', () => {
+    const r = run('try:\n    look("front")\nexcept:\n    print("잡았다")\nmove_right()\nmove_right()\n', stage(['S.E'], { seeds: [1] }));
+    expect(r.runs[0].out).toEqual(['잡았다']);
+    expect(r.runs[0].summary.cleared).toBe(true);
   });
 
   it('턴 제한', () => {

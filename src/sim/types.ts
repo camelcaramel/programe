@@ -29,9 +29,11 @@ export interface StageDef {
   random?: Record<string, string[]>;
   /** 이 시드들을 모두 통과해야 클리어 */
   seeds: number[];
-  maxTurns?: number;
+  /** 턴 제한. 함수면 시드마다 만든 맵을 보고 정한다 (예: 걸어야 할 칸 수 + 여유) */
+  maxTurns?: number | ((rows: string[]) => number);
   playerHp?: number;
-  stars?: { lines?: number; chests?: boolean };
+  /** 별 조건: lines = 이 줄 수 이하로 클리어 */
+  stars?: { lines?: number };
 }
 
 /** 시드가 정해진 뒤의 실제 맵 (직렬화 가능한 순수 데이터, 렌더러도 그대로 쓴다) */

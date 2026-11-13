@@ -40,7 +40,7 @@ export function buildLevel(def: StageDef, seed: number): Level {
     seed,
     width,
     height: rows.length,
-    maxTurns: def.maxTurns ?? DEFAULT_MAX_TURNS,
+    maxTurns: typeof def.maxTurns === 'function' ? def.maxTurns(rows) : (def.maxTurns ?? DEFAULT_MAX_TURNS),
     playerHp: def.playerHp ?? DEFAULT_PLAYER_HP,
     terrain,
     start: { x: -1, y: -1 },

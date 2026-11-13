@@ -84,6 +84,14 @@ describe('buildLevel', () => {
     expect(widths.size).toBeGreaterThan(1);
   });
 
+  it('maxTurns 가 함수면 만든 맵으로 계산', () => {
+    const d = def((rng) => ['S' + '.'.repeat(1 + rng.int(6)) + 'E'], { maxTurns: (rows) => rows[0].length + 1 });
+    for (let seed = 1; seed <= 5; seed++) {
+      const lv = buildLevel(d, seed);
+      expect(lv.maxTurns).toBe(lv.width + 1);
+    }
+  });
+
   it('잘못된 맵은 StageError', () => {
     expect(() => buildLevel(def(['..E']), 1)).toThrow(StageError); // S 없음
     expect(() => buildLevel(def(['SSE']), 1)).toThrow(/정확히 1개/);
