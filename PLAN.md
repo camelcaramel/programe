@@ -120,8 +120,14 @@ programe/
 - [x] G0 문서 갱신 (SRD v0.3, PLAN v0.2)
 - [x] G0 에셋: Kenney Tiny Dungeon 1.0 내려받아 `public/assets/kenney/topdown/`에 배치 (2026-11-13)
 - [x] G1 시뮬레이터 + 단위 테스트 (2026-11-13): `src/sim/` (types·rng·rules·errors·stage·world), Vitest 29개 통과
-  - G2 주의: `SimStop`은 일반 `Error`라서 학생의 `except Exception:`에 잡힐 수 있다. 파이썬 쪽에서 `BaseException` 계열로 바꿔 던져야 한다
-- [ ] G2 파이썬 연결 + trace
+- [x] G2 파이썬 연결 + trace (2026-11-13)
+  - `prelude.py`의 `_run_stage` + `src/python/stageBridge.ts`(Worker·테스트 공용) + `python.runStage(code, levels, api?)`
+  - JS api 는 예외 대신 `"STOP:…"`/`"ERR:…"` 문자열을 돌려주고, 파이썬이 `_Stop(BaseException)`으로 바꿔 던진다 → 학생의 `except Exception:`으로 게임 종료를 막을 수 없음
+  - 줄 번호는 파이썬 호출 스택에서 학생 파일(`<내 코드>`)의 줄을 찾아 넘김 (학생이 만든 함수 안에서도 정확)
+  - 제한: 시드당 0.5초·추적 10만 단계, 워커 강제 종료는 `시드 수 × 0.5초 + 1.5초`
+  - 스테이지별 명령 제한(`api` 목록) 지원: 안 연 명령은 "아직 배우지 않은 명령" 오류
+  - 테스트: Node 에서 실제 Pyodide 로 15개 (전체 44개). 브라우저 워커에서도 시드 3개 실행·무한 루프 차단·v0.1 스킬 실행 확인
+  - v0.1 `run`/`_run`은 G3에서 v0.1 코드와 함께 삭제
 - [ ] G3 GridScene + 스테이지 1 플레이
 - [ ] G4 화면 흐름 + 결과 패널 + 별
 - [ ] G5 스테이지 1~10
