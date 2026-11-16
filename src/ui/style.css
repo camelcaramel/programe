@@ -436,6 +436,8 @@ kbd {
 @keyframes flap { 50% { transform: translate(40px, -18px); } }
 
 .overlay.select { place-items: start center; overflow-y: auto; }
+/* 스크롤해도 어두운 그림자가 화면 전체를 덮도록 */
+.overlay.select::before { position: fixed; }
 .screen.wide { width: min(980px, 100%); padding: 28px 24px 40px; }
 .select-head { display: flex; align-items: center; gap: 16px; width: 100%; margin-bottom: 18px; }
 .select-title { flex: 1; margin: 0; font-size: 46px; font-weight: 400; color: var(--gold); -webkit-text-stroke: 9px var(--ink); paint-order: stroke fill; text-shadow: 0 6px 0 var(--ink); }
@@ -531,3 +533,11 @@ kbd {
 .title-links { margin-top: 10px; }
 .title-links .link { font-size: 15px; color: #fff; text-shadow: var(--o1); }
 .stage-grid + .part-head { margin-top: 28px; }
+
+/* ---- 교사용 "모두 열기" */
+.teacher-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; width: 100%; margin: 0 0 10px; padding: 6px 14px; font-size: 14px; color: var(--ink); background: rgba(255, 248, 234, 0.94); border: 2px solid var(--ink); border-radius: 12px; }
+.teacher-note b { color: var(--cover-dark); }
+.teacher-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; width: 100%; margin-top: 24px; padding: 8px 14px; font-size: 15px; color: #fff; text-shadow: var(--o1); background: rgba(20, 16, 30, 0.55); border: 2px dashed var(--gold-light); border-radius: 12px; }
+.teacher-bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.teacher-bar input { width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer; }
+.teacher-bar small { font-size: 13px; color: var(--gold-light); }

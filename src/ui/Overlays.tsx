@@ -1,5 +1,5 @@
 import { gameStore, toastStore, uiStore, useStore } from '../state/store';
-import { isUnlocked, progressStore } from '../state/codeStore';
+import { isUnlocked, progressStore, setUnlockAll, teacherMode, teacherStore } from '../state/codeStore';
 import { goSelect, goTitle, openStage } from '../game/play';
 import { STAGES, type StageInfo } from '../stages';
 import { replayTutorial } from '../state/guide';
@@ -84,6 +84,7 @@ function TitleScreen() {
 
 function StageSelect() {
   const progress = useStore(progressStore, (s) => s.stages);
+  const unlockAll = useStore(teacherStore, (s) => s.unlockAll);
   const total = STAGES.reduce((n, s) => n + (progress[s.id]?.stars ?? 0), 0);
   return (
     <div className="overlay select dungeon-bg" style={floorBg}>
@@ -98,16 +99,53 @@ function StageSelect() {
             {total} / {STAGES.length * 3}
           </div>
         </div>
-        <PartSection part={1} title="1부 · 첫 주문들" sub="순서 · for · if · while · 함수" progress={progress} />
-        <PartSection part={2} title="2부 · 기억과 목록" sub="변수 · 자료형 · 리스트 · return" progress={progress} />
+        {unlockAll && (
+          <div className="teacher-note" role="status">
+            <span>
+              🔓 교사용 <b>모두 열기</b>가 켜져 있어요. 앞 단계를 깨지 않아도 모든 스테이지를 열 수 있어요.
+            </span>
+            <button className="link dark" onClick={() => setUnlockAll(false)}>
+              끄기
+            </button>
+          </div>
+        )}
+        <PartSection part={1} title="1부 · 첫 주문들" sub="순서 · for · if · while · 함수" progress={progress} unlockAll={unlockAll} />
+        <PartSection part={2} title="2부 · 기억과 목록" sub="변수 · 자료형 · 리스트 · return" progress={progress} unlockAll={unlockAll} />
+        {teacherMode && <TeacherBar unlockAll={unlockAll} />}
       </div>
     </div>
   );
 }
 
-function PartSection({ part, title, sub, progress }: { part: 1 | 2; title: string; sub: string; progress: Record<string, { stars: number }> }) {
+/** 주소에 ?teacher 가 있을 때만 보이는 교사용 막대 */
+function TeacherBar({ unlockAll }: { unlockAll: boolean }) {
+  return (
+    <div className="teacher-bar">
+      <span>👩‍🏫 교사용</span>
+      <label>
+        <input type="checkbox" checked={unlockAll} onChange={(e) => setUnlockAll(e.currentTarget.checked)} />
+        모든 스테이지 열기
+      </label>
+      <small>이 브라우저에만 저장돼요. 별 기록은 그대로예요.</small>
+    </div>
+  );
+}
+
+function PartSection({
+  part,
+  title,
+  sub,
+  progress,
+  unlockAll,
+}: {
+  part: 1 | 2;
+  title: string;
+  sub: string;
+  progress: Record<string, { stars: number }>;
+  unlockAll: boolean;
+}) {
   const list: [StageInfo, number][] = STAGES.map((s, i) => [s, i] as [StageInfo, number]).filter(([s]) => s.part === part);
-  const firstOpen = isUnlocked(list[0][0].id, progress);
+  const firstOpen = isUnlocked(list[0][0].id, progress, unlockAll);
   const prevPart = STAGES.filter((s) => s.part === part - 1).length;
   return (
     <>
@@ -118,7 +156,7 @@ function PartSection({ part, title, sub, progress }: { part: 1 | 2; title: strin
       </div>
       <div className="stage-grid">
         {list.map(([s, i]) => {
-          const open = isUnlocked(s.id, progress);
+          const open = isUnlocked(s.id, progress, unlockAll);
           const stars = progress[s.id]?.stars ?? 0;
           return (
             <button
