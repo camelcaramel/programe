@@ -1,6 +1,8 @@
 # programe (가제)
 
-파이썬 코드 한 편으로 던전을 탈출하는 웹 2D 탑다운 퍼즐입니다. 중·고등학생이 맵을 살펴보고 계획을 세운 뒤, **캐릭터를 오직 자기 코드로만** 움직여 스테이지를 풉니다. 순차 실행 → `for` → `if` → `while` → `def` → 변수 → 이중 `for` 를 스테이지마다 하나씩 배웁니다.
+파이썬 코드 한 편으로 던전을 탈출하는 웹 2D 탑다운 퍼즐입니다. 중·고등학생이 맵을 살펴보고 계획을 세운 뒤, **캐릭터를 오직 자기 코드로만** 움직여 스테이지를 풉니다. 1부(스테이지 1~10)에서 순차 실행 → `for` → `if` → `while` → `def` → 변수 → 이중 `for` 를, 2부(11~18)에서 변수 저장 → 자료형·형변환 → 카운터 → 리스트 → 인덱스·`len()` → `append`·`max` → `return` 함수를 스테이지마다 하나씩 배웁니다.
+
+- 처음 들어오면 스테이지 1에서 화면 안내 튜토리얼이 뜹니다(처음 화면·명령 사전에서 다시 보기). 새 개념이 나오는 스테이지는 처음 열 때 "새 개념" 카드로 설명합니다.
 
 - 기술: Phaser 3 · TypeScript · React · Monaco Editor · Pyodide(Web Worker) · Vite · Vitest
 - 에셋: [Kenney](https://kenney.nl) Tiny Dungeon (CC0), 효과음은 Kenney 팩
@@ -32,6 +34,8 @@ npm run preview   # 빌드 결과 미리보기
 3. **재생**: 실행 기록을 애니메이션으로 보여 주고, 지금 실행 중인 코드 줄을 노랗게 표시합니다. 실패한 맵부터 재생합니다.
 4. **결과**: 별 3개 = 맵 모두 통과 · 보물상자 모두 열기 · 코드 N줄 이하.
 
+2부는 1부 10단계를 클리어하면 열립니다. 표지판·석판의 내용과 비밀 문 암호는 실행마다 바뀌고 계획 화면에서는 가려져 있어, **코드로 읽어서** 써야 합니다.
+
 ```python
 for i in range(6):
     if look("right") == "slime":
@@ -53,10 +57,13 @@ for i in range(6):
 | 명령 | 설명 | 턴 |
 |------|------|----|
 | `move_up()` `move_down()` `move_left()` `move_right()` | 한 칸 이동. 벽이면 제자리("쿵") | 1 |
-| `look(방향)` | 옆 칸: `"empty"` `"wall"` `"exit"` `"chest"` `"key"` `"door"` `"slime"` `"bat"` `"giant"` | 0 |
+| `look(방향)` | 옆 칸: `"empty"` `"wall"` `"exit"` `"chest"` `"key"` `"door"` `"slime"` `"bat"` `"giant"` (2부: `"sign"` `"tablet"` `"gate"`) | 0 |
 | `cast(마법, 방향)` | 옆 칸 몬스터에게 `"fireball"`(불) / `"icebolt"`(얼음) | 1 |
 | `get_hp()` `get_pos()` `get_coins()` `get_keys()` | 내 상태 | 0 |
 | `print(...)` | 주문 기록 창에 출력 | 0 |
+| `read(방향)` (11~) | 옆 칸 표지판은 문자열(`"42"`), 석판은 리스트(`["right", "down"]`) | 0 |
+| `open_gate(방향, 암호)` (11~) | 옆 칸 비밀 문에 암호. **자료형까지 같아야** 열림(`"42"` ≠ `42`). 틀리면 경보, HP −1 | 1 |
+| `move(방향)` (14~) | `move("right")` = `move_right()`. 리스트의 방향을 그대로 따라갈 때 | 1 |
 
 방향은 `"up"` `"down"` `"left"` `"right"`. 스테이지마다 쓸 수 있는 명령이 정해져 있고, 아직 안 배운 명령은 "아직 배우지 않은 명령" 오류가 납니다.
 
@@ -81,23 +88,24 @@ for i in range(6):
 
 ## 스테이지 만들기
 
-스테이지는 `src/stages/index.ts` 에 ASCII 맵으로 정의합니다.
+스테이지는 ASCII 맵으로 정의합니다. 1부는 `src/stages/index.ts`, 2부는 `src/stages/part2.ts` (공용 타입은 `types.ts`, 미로 생성·길 찾기는 `maze.ts`).
 
 ```
 .  바닥     #  벽       S  시작     E  출구
 c  보물상자  k  열쇠     D  문
 s  슬라임   b  박쥐     g  외눈 거인
 ?  랜덤 칸 (random 에 후보를 적음, 예: { '?': ['.', 's'] })
+T  표지판   M  석판     G  비밀 문   (내용·암호는 content(rng, 자리) 가 시드로 만듦)
 ```
 
-각 스테이지에는 정답 예시(`solution`)와 하드코딩 풀이(`hardcoded`)를 함께 적습니다. `npm test` 가 실제 Pyodide 로 "정답은 모든 시드 클리어 + 별 3개, 하드코딩은 어떤 시드에서 실패"를 확인합니다.
+각 스테이지에는 정답 예시(`solution`)와 하드코딩 풀이(`hardcoded`)·우회 풀이(`bypasses`)를 함께 적습니다. `npm test` 가 실제 Pyodide 로 "정답은 모든 시드 클리어 + 별 3개, 하드코딩·우회 풀이는 실패, 시드마다 맵·내용이 다름"을 확인합니다. 새 개념 설명 카드는 스테이지 정의의 `concepts` 필드에 둡니다.
 
 ## 폴더 구조
 
 ```
 src/
   sim/                게임 규칙 (순수 TS): 시드 난수, ASCII → 맵, World(move·look·cast), 실행 기록, 되감기 계산
-  stages/             스테이지 1~10, 별 계산, 스테이지 테스트
+  stages/             1부(index.ts)·2부(part2.ts) 스테이지와 개념 카드, 미로(maze.ts), 별 계산, 스테이지 테스트
   python/
     prelude.py        샌드박스, 학생 명령, 오류 메시지
     stageBridge.ts    파이썬 ↔ 시뮬레이터 연결 (워커·테스트 공용)
@@ -106,7 +114,7 @@ src/
   game/
     play.ts           스테이지 열기 → 실행 → 재생 → 결과
     scenes/GridScene  타일 그리기, 실행 기록 애니메이션, 효과음
-  state/              Phaser ↔ React 공용 상태, 코드·별 저장(localStorage)
-  ui/                 React: HUD, 재생 막대, 결과 카드, 마법서(Monaco), 타이틀·스테이지 선택
+  state/              Phaser ↔ React 공용 상태, 코드·별 저장(localStorage), 개념 카드·튜토리얼(guide.ts)
+  ui/                 React: HUD, 재생 막대, 결과 카드, 마법서(Monaco), 타이틀·스테이지 선택, 개념 카드·튜토리얼(Guide.tsx)
 scripts/copy-pyodide.mjs   Pyodide 런타임 복사
 ```
