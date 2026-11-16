@@ -8,8 +8,13 @@ export type MonsterKind = 'slime' | 'bat' | 'giant';
 export type Skill = 'fireball' | 'icebolt';
 export type Element = 'fire' | 'ice';
 
-/** 움직이지 않는 지형 */
-export type Terrain = 'floor' | 'wall' | 'exit' | 'door';
+/** 움직이지 않는 지형. sign(표지판)·tablet(석판)·gate(비밀 문)은 2부에서 쓴다 */
+export type Terrain = 'floor' | 'wall' | 'exit' | 'door' | 'sign' | 'tablet' | 'gate';
+
+/** 표지판(문자열)·석판(리스트)에 적힌 값 */
+export type SignValue = string | (string | number)[];
+/** 비밀 문 암호. 자료형까지 같아야 열린다 ("7" 과 7 은 다름) */
+export type GateCode = string | number;
 
 export interface Pos {
   x: number;
@@ -17,7 +22,22 @@ export interface Pos {
 }
 
 /** look() 이 돌려주는 값 */
-export type LookResult = 'wall' | 'empty' | 'chest' | 'exit' | 'door' | 'key' | MonsterKind;
+export type LookResult = 'wall' | 'empty' | 'chest' | 'exit' | 'door' | 'key' | 'sign' | 'tablet' | 'gate' | MonsterKind;
+
+/** content() 에 넘겨주는, 맵에서 찾은 표지판·석판·비밀 문 위치 (위→아래, 왼→오른 순서) */
+export interface ContentSlots {
+  rows: string[];
+  signs: Pos[];
+  tablets: Pos[];
+  gates: Pos[];
+}
+
+/** content() 가 돌려주는 값: 위치 순서대로 표지판 글자, 석판 리스트, 문 암호 */
+export interface StageContent {
+  signs?: string[];
+  tablets?: (string | number)[][];
+  gates?: GateCode[];
+}
 
 /** 스테이지 정의 (src/stages/*.ts 에서 작성) */
 export interface StageDef {
@@ -34,6 +54,8 @@ export interface StageDef {
   playerHp?: number;
   /** 별 조건: lines = 이 줄 수 이하로 클리어 */
   stars?: { lines?: number };
+  /** 표지판(T)·석판(M)의 내용과 비밀 문(G)의 암호를 시드로 만든다. 맵을 다 만든 뒤 같은 rng 로 부른다 */
+  content?: (rng: Rng, slots: ContentSlots) => StageContent;
 }
 
 /** 시드가 정해진 뒤의 실제 맵 (직렬화 가능한 순수 데이터, 렌더러도 그대로 쓴다) */
@@ -52,6 +74,10 @@ export interface Level {
   keys: Pos[];
   /** 렌더러가 '?' 칸 위치를 표시할 수 있도록 원래 랜덤 칸이었던 좌표 */
   randomCells: Pos[];
+  /** 표지판·석판과 적힌 값 (계획 화면에서는 가려서 그린다) */
+  signs: { x: number; y: number; kind: 'sign' | 'tablet'; value: SignValue }[];
+  /** 비밀 문과 암호 */
+  gates: { x: number; y: number; code: GateCode }[];
 }
 
 export type TraceEvent =
@@ -64,11 +90,14 @@ export type TraceEvent =
   | 'exit' // 출구 도착 (클리어)
   | 'damage' // 마법 명중, 몬스터 생존
   | 'kill' // 마법 명중, 몬스터 처치
-  | 'miss'; // 그 방향에 몬스터가 없음
+  | 'miss' // 그 방향에 몬스터가 없음
+  | 'read' // 표지판·석판 읽기 (0턴, 재생 때 말풍선)
+  | 'gate_open' // 맞는 암호로 비밀 문 열기 (제자리)
+  | 'gate_wrong'; // 틀린 암호: 경보, HP −1 (제자리)
 
 export interface TraceStep {
   turn: number;
-  action: 'move' | 'cast';
+  action: 'move' | 'cast' | 'read' | 'gate';
   dir: Dir;
   skill?: Skill;
   event: TraceEvent;
@@ -84,6 +113,12 @@ export interface TraceStep {
   amount?: number;
   /** 학생 코드의 줄 번호 (알 수 없으면 null) */
   line: number | null;
+  /** read: 읽은 값 */
+  value?: SignValue;
+  /** open_gate: 넣은 암호를 파이썬 모양으로 (말풍선용, 예: '"12"', '42') */
+  shown?: string;
+  /** gate_wrong: 값은 같아 보이는데 자료형이 달라서 틀림 (예: "42" 와 42) */
+  typeMismatch?: boolean;
 }
 
 export type EndReason =

@@ -14,6 +14,10 @@ export interface BoardState {
   chests: { x: number; y: number; open: boolean }[];
   keyItems: Pos[];
   doors: { x: number; y: number; open: boolean }[];
+  /** 비밀 문 (2부) */
+  gates: { x: number; y: number; open: boolean }[];
+  /** 한 번이라도 읽은 표지판·석판 ("x,y") */
+  read: string[];
 }
 
 const same = (a: Pos, b: Pos) => a.x === b.x && a.y === b.y;
@@ -32,6 +36,8 @@ export function initialBoard(level: Level): BoardState {
     chests: level.chests.map((c) => ({ ...c, open: false })),
     keyItems: level.keys.map((k) => ({ ...k })),
     doors,
+    gates: level.gates.map((g) => ({ x: g.x, y: g.y, open: false })),
+    read: [],
   };
 }
 
@@ -50,6 +56,16 @@ export function applyStep(state: BoardState, step: TraceStep): void {
     case 'door': {
       const d = state.doors.find((d) => same(d, t));
       if (d) d.open = true;
+      break;
+    }
+    case 'gate_open': {
+      const g = state.gates.find((g) => same(g, t));
+      if (g) g.open = true;
+      break;
+    }
+    case 'read': {
+      const k = `${t.x},${t.y}`;
+      if (!state.read.includes(k)) state.read = [...state.read, k];
       break;
     }
     case 'damage':

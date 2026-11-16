@@ -6,11 +6,13 @@ import {
   DIRS,
   type Dir,
   type EndReason,
+  type GateCode,
   type Level,
   type LookResult,
   type MonsterKind,
   type Pos,
   type RunSummary,
+  type SignValue,
   type Skill,
   type Terrain,
   type TraceEvent,
@@ -34,6 +36,21 @@ const DELTA: Record<Dir, Pos> = {
 
 const keyOf = (p: Pos) => `${p.x},${p.y}`;
 
+/** 지나갈 수 없는 지형 (문은 열쇠가 있으면 열림) */
+const SOLID: ReadonlySet<Terrain> = new Set(['wall', 'sign', 'tablet', 'gate']);
+
+/** 재생 기록이 너무 길어지지 않도록 read 기록은 이만큼만 남긴다 (값은 계속 돌려줌) */
+const MAX_READ_TRACE = 300;
+
+const LOOK_KO: Partial<Record<LookResult, string>> = {
+  wall: '벽',
+  empty: '빈칸',
+  exit: '출구',
+  door: '문',
+  gate: '비밀 문',
+  chest: '보물상자',
+  key: '열쇠',
+};
 export class World {
   readonly trace: TraceStep[] = [];
   readonly maxTurns: number;
@@ -47,6 +64,9 @@ export class World {
   private readonly monsters = new Map<string, { kind: MonsterKind; hp: number }>();
   private readonly chests = new Set<string>();
   private readonly keyItems = new Set<string>();
+  private readonly signs = new Map<string, SignValue>();
+  private readonly gates = new Map<string, GateCode>();
+  private reads = 0;
   private readonly getLine: () => number | null;
   private ended: EndReason | null = null;
 
@@ -59,6 +79,8 @@ export class World {
     for (const m of level.monsters) this.monsters.set(keyOf(m), { kind: m.kind, hp: MONSTER_RULES[m.kind].hp });
     for (const c of level.chests) this.chests.add(keyOf(c));
     for (const k of level.keys) this.keyItems.add(keyOf(k));
+    for (const s of level.signs) this.signs.set(keyOf(s), s.value);
+    for (const g of level.gates) this.gates.set(keyOf(g), g.code);
   }
 
   get status(): 'running' | 'cleared' | 'failed' {
@@ -80,7 +102,7 @@ export class World {
     const k = keyOf(t);
     const ter = this.terrainAt(t);
 
-    if (ter === 'wall') return this.record('move', d, 'bump', t, false);
+    if (SOLID.has(ter)) return this.record('move', d, 'bump', t, false);
     if (ter === 'door') {
       if (this.keys === 0) return this.record('move', d, 'bump', t, false);
       this.keys--;
@@ -146,6 +168,51 @@ export class World {
     this.record('cast', d, 'damage', t, dmg > 0, dmg, s);
   }
 
+  /** 옆 칸 표지판(문자열)·석판(리스트) 읽기 (턴을 쓰지 않음) */
+  read(dir: unknown): SignValue {
+    const d = this.checkDir(dir);
+    if (this.ended) throw new SimStop(this.ended);
+    const t = this.step(d);
+    const value = this.signs.get(keyOf(t));
+    if (value === undefined) {
+      const what = this.look(d);
+      const name = LOOK_KO[what] ?? what;
+      throw new SimInputError(`read() 는 바로 옆 칸의 표지판이나 석판만 읽을 수 있어요. ${d} 쪽은 ${name}이에요.`);
+    }
+    if (this.reads < MAX_READ_TRACE) {
+      this.reads++;
+      this.trace.push({ ...this.snapshot('read', d, 'read', t, true), value: copyValue(value) });
+    }
+    return copyValue(value);
+  }
+
+  /**
+   * 옆 칸 비밀 문에 암호 넣기 (1턴). 자료형까지 같아야 열린다.
+   * 틀리면 경보가 울려 HP −1 (0 이 되면 쓰러짐).
+   * shown: 넣은 값을 파이썬 모양으로 (말풍선용). 없으면 JS 값으로 만든다.
+   */
+  openGate(dir: unknown, code: unknown, shown?: string): void {
+    const d = this.checkDir(dir);
+    if (this.ended) throw new SimStop(this.ended);
+    const t = this.step(d);
+    const answer = this.gates.get(keyOf(t));
+    if (answer === undefined || this.terrainAt(t) !== 'gate') {
+      const what = this.look(d);
+      throw new SimInputError(`open_gate() 는 바로 옆 칸의 닫힌 비밀 문에만 쓸 수 있어요. ${d} 쪽은 ${LOOK_KO[what] ?? what}이에요.`);
+    }
+    this.beginTurn();
+    const text = shown ?? (typeof code === 'string' ? JSON.stringify(code) : String(code));
+    if (code === answer) {
+      this.terrain[t.y][t.x] = 'floor';
+      this.trace.push({ ...this.snapshot('gate', d, 'gate_open', t, true), shown: text });
+      return;
+    }
+    this.hp = Math.max(0, this.hp - 1);
+    const typeMismatch = (typeof code === 'string' || typeof code === 'number') && typeof code !== typeof answer && String(code) === String(answer);
+    this.trace.push({ ...this.snapshot('gate', d, 'gate_wrong', t, false, 1), shown: text, ...(typeMismatch ? { typeMismatch } : {}) });
+    if (this.hp === 0) this.end('dead');
+  }
+
   getPos(): Pos {
     return { ...this.pos };
   }
@@ -201,7 +268,19 @@ export class World {
     amount?: number,
     skill?: Skill,
   ) {
-    this.trace.push({
+    this.trace.push(this.snapshot(action, dir, event, target, ok, amount, skill));
+  }
+
+  private snapshot(
+    action: TraceStep['action'],
+    dir: Dir,
+    event: TraceEvent,
+    target: Pos,
+    ok: boolean,
+    amount?: number,
+    skill?: Skill,
+  ): TraceStep {
+    return {
       turn: this.turn,
       action,
       dir,
@@ -215,7 +294,7 @@ export class World {
       target,
       ...(amount !== undefined ? { amount } : {}),
       line: this.getLine(),
-    });
+    };
   }
 
   private checkDir(dir: unknown): Dir {
@@ -228,6 +307,8 @@ export class World {
     throw new SimInputError(`알 수 없는 마법이에요: ${show(skill)}  (사용 가능: ${SKILLS.join(', ')})`);
   }
 }
+
+const copyValue = (v: SignValue): SignValue => (Array.isArray(v) ? [...v] : v);
 
 function show(v: unknown): string {
   return typeof v === 'string' ? JSON.stringify(v) : String(v);

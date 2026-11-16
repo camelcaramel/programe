@@ -3,13 +3,22 @@
 //   .  바닥      #  벽       S  시작     E  출구
 //   c  보물상자  k  열쇠     D  문
 //   s  슬라임    b  박쥐     g  외눈 거인
+//   T  표지판    M  석판     G  비밀 문   (2부. 내용·암호는 StageDef.content 가 시드로 만든다)
 //   그 밖의 문자는 StageDef.random 에 후보를 적어 랜덤 칸으로 쓴다 (보통 '?')
 import { StageError } from './errors';
 import { createRng } from './rng';
 import { DEFAULT_MAX_TURNS, DEFAULT_PLAYER_HP, MONSTER_CHAR } from './rules';
-import type { Level, Pos, StageDef, Terrain } from './types';
+import type { ContentSlots, Level, Pos, StageDef, Terrain } from './types';
 
-const TERRAIN_CHAR: Record<string, Terrain> = { '.': 'floor', '#': 'wall', E: 'exit', D: 'door' };
+const TERRAIN_CHAR: Record<string, Terrain> = {
+  '.': 'floor',
+  '#': 'wall',
+  E: 'exit',
+  D: 'door',
+  T: 'sign',
+  M: 'tablet',
+  G: 'gate',
+};
 
 export function buildLevel(def: StageDef, seed: number): Level {
   const rng = createRng(seed);
@@ -48,7 +57,10 @@ export function buildLevel(def: StageDef, seed: number): Level {
     chests: [],
     keys: [],
     randomCells: [],
+    signs: [],
+    gates: [],
   };
+  const slots: ContentSlots = { rows, signs: [], tablets: [], gates: [] };
   let starts = 0;
   let exits = 0;
 
@@ -65,6 +77,9 @@ export function buildLevel(def: StageDef, seed: number): Level {
       if (ch in TERRAIN_CHAR) {
         line.push(TERRAIN_CHAR[ch]);
         if (ch === 'E') exits++;
+        else if (ch === 'T') slots.signs.push(here);
+        else if (ch === 'M') slots.tablets.push(here);
+        else if (ch === 'G') slots.gates.push(here);
         return;
       }
       line.push('floor');
@@ -78,6 +93,23 @@ export function buildLevel(def: StageDef, seed: number): Level {
     });
     terrain.push(line);
   });
+
+  // 표지판·석판·비밀 문의 내용 (랜덤 칸을 다 뽑은 뒤 같은 rng 로 만들므로 시드가 같으면 내용도 같다)
+  const nSlots = slots.signs.length + slots.tablets.length + slots.gates.length;
+  if (nSlots > 0) {
+    if (!def.content) fail('표지판(T)·석판(M)·비밀 문(G)이 있으면 content 함수가 필요해요');
+    const c = def.content!(rng, slots);
+    const signs = c.signs ?? [];
+    const tablets = c.tablets ?? [];
+    const gates = c.gates ?? [];
+    if (signs.length !== slots.signs.length) fail(`표지판 ${slots.signs.length}개인데 내용은 ${signs.length}개예요`);
+    if (tablets.length !== slots.tablets.length) fail(`석판 ${slots.tablets.length}개인데 내용은 ${tablets.length}개예요`);
+    if (gates.length !== slots.gates.length) fail(`비밀 문 ${slots.gates.length}개인데 암호는 ${gates.length}개예요`);
+    slots.signs.forEach((p, i) => level.signs.push({ ...p, kind: 'sign', value: String(signs[i]) }));
+    slots.tablets.forEach((p, i) => level.signs.push({ ...p, kind: 'tablet', value: [...tablets[i]] }));
+    slots.gates.forEach((p, i) => level.gates.push({ ...p, code: gates[i] }));
+    level.signs.sort((a, b) => a.y - b.y || a.x - b.x);
+  }
 
   if (starts !== 1) fail(`시작 위치(S)는 정확히 1개여야 해요 (지금 ${starts}개)`);
   if (exits < 1) fail('출구(E)가 없어요');
