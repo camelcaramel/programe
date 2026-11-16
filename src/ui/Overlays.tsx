@@ -1,7 +1,8 @@
 import { gameStore, toastStore, uiStore, useStore } from '../state/store';
 import { isUnlocked, progressStore } from '../state/codeStore';
 import { goSelect, goTitle, openStage } from '../game/play';
-import { STAGES } from '../stages';
+import { STAGES, type StageInfo } from '../stages';
+import { replayTutorial } from '../state/guide';
 import { TILE } from '../game/scenes/GridScene';
 import { EngineStatus, tileImg } from './SidePanel';
 import { LockIcon, StarIcon } from './icons';
@@ -62,6 +63,17 @@ function TitleScreen() {
         >
           모험 시작
         </button>
+        <div className="title-links">
+          <button
+            className="link"
+            onClick={() => {
+              openStage(STAGES[0].id);
+              replayTutorial('basic');
+            }}
+          >
+            튜토리얼 다시 보기
+          </button>
+        </div>
         <div className="title-engine">
           <EngineStatus status={status} long />
         </div>
@@ -86,30 +98,47 @@ function StageSelect() {
             {total} / {STAGES.length * 3}
           </div>
         </div>
-        <div className="stage-grid">
-          {STAGES.map((s, i) => {
-            const open = isUnlocked(s.id, progress);
-            const stars = progress[s.id]?.stars ?? 0;
-            return (
-              <button
-                key={s.id}
-                className={`stage-card ${open ? '' : 'locked'} ${stars > 0 ? 'cleared' : ''}`}
-                disabled={!open}
-                onClick={() => openStage(s.id)}
-                title={open ? s.goal : '앞 스테이지를 클리어하면 열려요'}
-                aria-label={`${i + 1}. ${s.title} (${s.concept})${open ? ` 별 ${stars}개` : ' 잠김'}`}
-              >
-                <span className="sc-num">{i + 1}</span>
-                <span className="sc-title">{s.title}</span>
-                <span className="sc-concept">{s.concept}</span>
-                <span className="sc-stars">
-                  {open ? [0, 1, 2].map((k) => <StarIcon key={k} on={k < stars} />) : <LockIcon />}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <PartSection part={1} title="1부 · 첫 주문들" sub="순서 · for · if · while · 함수" progress={progress} />
+        <PartSection part={2} title="2부 · 기억과 목록" sub="변수 · 자료형 · 리스트 · return" progress={progress} />
       </div>
     </div>
+  );
+}
+
+function PartSection({ part, title, sub, progress }: { part: 1 | 2; title: string; sub: string; progress: Record<string, { stars: number }> }) {
+  const list: [StageInfo, number][] = STAGES.map((s, i) => [s, i] as [StageInfo, number]).filter(([s]) => s.part === part);
+  const firstOpen = isUnlocked(list[0][0].id, progress);
+  const prevPart = STAGES.filter((s) => s.part === part - 1).length;
+  return (
+    <>
+      <div className="part-head">
+        <h3>{title}</h3>
+        <small>{sub}</small>
+        {!firstOpen && <span className="locked-note">🔒 {prevPart}단계를 클리어하면 열려요</span>}
+      </div>
+      <div className="stage-grid">
+        {list.map(([s, i]) => {
+          const open = isUnlocked(s.id, progress);
+          const stars = progress[s.id]?.stars ?? 0;
+          return (
+            <button
+              key={s.id}
+              className={`stage-card ${open ? '' : 'locked'} ${stars > 0 ? 'cleared' : ''}`}
+              disabled={!open}
+              onClick={() => openStage(s.id)}
+              title={open ? s.goal : '앞 스테이지를 클리어하면 열려요'}
+              aria-label={`${i + 1}. ${s.title} (${s.concept})${open ? ` 별 ${stars}개` : ' 잠김'}`}
+            >
+              <span className="sc-num">{i + 1}</span>
+              <span className="sc-title">{s.title}</span>
+              <span className="sc-concept">{s.concept}</span>
+              <span className="sc-stars">
+                {open ? [0, 1, 2].map((k) => <StarIcon key={k} on={k < stars} />) : <LockIcon />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }

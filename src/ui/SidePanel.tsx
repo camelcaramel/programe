@@ -7,6 +7,7 @@ import { MONSTER_RULES, MONSTER_KINDS } from '../sim';
 import { countCodeLines, getStage, stageIndex } from '../stages';
 import { starRules } from '../stages/score';
 import { API_DOCS } from './apiDocs';
+import { learnedConcepts, replayTutorial, showConcept } from '../state/guide';
 import { BookIcon, StarIcon } from './icons';
 import { TILE } from '../game/scenes/GridScene';
 
@@ -110,13 +111,19 @@ function CodeTab() {
             </li>
           ))}
         </ul>
-        {hint ? (
-          <div className="brief-hint">💡 {stage.hint}</div>
-        ) : (
-          <button className="link dark" onClick={() => setHint(true)}>
-            💡 힌트 보기
-          </button>
-        )}
+        {hint && <div className="brief-hint">💡 {stage.hint}</div>}
+        <div className="brief-links">
+          {!hint && (
+            <button className="link dark" onClick={() => setHint(true)}>
+              💡 힌트 보기
+            </button>
+          )}
+          {stage.concepts?.length ? (
+            <button className="link dark" onClick={() => showConcept(stageId)}>
+              📘 새 개념 다시 보기
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="slate editor-wrap">
@@ -203,7 +210,9 @@ function Console() {
 
 function HelpTab() {
   const stageId = useStore(gameStore, (s) => s.stageId);
-  const allowed = getStage(stageId).api;
+  const stage = getStage(stageId);
+  const allowed = stage.api;
+  const learned = learnedConcepts(stageId);
   return (
     <div className="tab-body scroll help">
       <section>
@@ -216,8 +225,32 @@ function HelpTab() {
           <li>벽에 부딪히면 제자리에서 턴만 써요. 몬스터에게 부딪히면 HP 가 줄어요.</li>
           <li>출구에 닿으면 그 순간 성공, 남은 코드는 실행되지 않아요.</li>
           <li>열쇠를 가지고 문으로 가면 열쇠 1개를 써서 문이 열려요.</li>
+          {stage.part === 2 && (
+            <>
+              <li>
+                <b>표지판</b>·<b>석판</b>의 내용은 계획 화면에서 가려져 있어요. 바로 옆에서 <code>read()</code> 로 읽어야 알 수 있어요.
+              </li>
+              <li>
+                <b>비밀 문</b>은 <code>open_gate()</code> 로 맞는 암호를 넣으면 열려요. 틀리면 경보가 울려 HP −1!
+              </li>
+            </>
+          )}
         </ul>
       </section>
+
+      {learned.length > 0 && (
+        <section>
+          <h3>배운 개념</h3>
+          <ul className="concept-list">
+            {learned.map((c) => (
+              <li key={c.stageId + c.name}>
+                <span className="num">{c.num}</span>
+                <button onClick={() => showConcept(c.stageId)}>{c.name}</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section>
         <h3>명령</h3>
@@ -270,6 +303,40 @@ function HelpTab() {
         </div>
       </section>
 
+      {stage.part === 2 && (
+        <section>
+          <h3>자료형</h3>
+          <table>
+            <tbody>
+              <tr>
+                <td>
+                  <code>"42"</code>
+                </td>
+                <td>문자열(str). 글자예요. <code>read()</code> 가 표지판에서 읽어 오는 값.</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>42</code>
+                </td>
+                <td>정수(int). 계산할 수 있는 수예요.</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>[3, 8, 1]</code>
+                </td>
+                <td>리스트(list). 값 여러 개를 순서대로. 번호는 0부터: <code>a[0]</code> 은 3.</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>int("42")</code>
+                </td>
+                <td>문자열 → 정수. <code>str(42)</code> 는 정수 → 문자열. <code>type(x)</code> 로 자료형을 볼 수 있어요.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      )}
+
       <section>
         <h3>파이썬 문법 미리보기</h3>
         <pre>{`for i in range(3):        # 3번 반복
@@ -297,6 +364,13 @@ room()                    # 함수 부르기`}</pre>
           <li><kbd>←</kbd><kbd>→</kbd> 재생 한 턴 뒤로/앞으로 (에디터 밖에서)</li>
           <li><kbd>Tab</kbd> 마법서 접기/펴기 · <kbd>Esc</kbd> 에디터에서 빠져나오기</li>
         </ul>
+      </section>
+
+      <section>
+        <h3>처음이라면</h3>
+        <button className="btn ghost small" onClick={() => replayTutorial('basic')}>
+          🧭 튜토리얼 다시 보기
+        </button>
       </section>
     </div>
   );

@@ -4,6 +4,7 @@ import { python } from '../python/runner';
 import { STAGES, getStage, stageIndex } from '../stages';
 import { scoreRun } from '../stages/score';
 import { codeFor, recordStars } from '../state/codeStore';
+import { closeGuide, onStageOpen } from '../state/guide';
 import { clearLog, currentTrace, gameStore, log, toast, uiStore, type Speed } from '../state/store';
 
 const STEP_MS = 420; // 1× 속도에서 한 턴
@@ -32,11 +33,13 @@ let chainAll = false;
 
 export function goTitle() {
   stopTimer();
+  closeGuide();
   gameStore.set({ screen: 'title', playing: false });
 }
 
 export function goSelect() {
   stopTimer();
+  closeGuide();
   gameStore.set({ screen: 'select', playing: false });
 }
 
@@ -60,6 +63,7 @@ export function openStage(stageId: string) {
   uiStore.set({ codeError: null, tab: 'code', panelOpen: true });
   clearLog();
   log('info', `${stageIndex(stageId) + 1}. ${stage.title} — ${stage.goal}`, '스테이지');
+  onStageOpen(stageId);
 }
 
 export function nextStageId(): string | null {

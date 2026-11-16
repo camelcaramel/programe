@@ -99,6 +99,7 @@ export class GridScene extends Phaser.Scene {
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
     this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
+    activeScene = this;
     if (import.meta.env.DEV) Object.assign(window, { __grid: this });
     this.sync();
   }
@@ -561,6 +562,21 @@ export class GridScene extends Phaser.Scene {
     for (let y = 0; y < height; y++) this.guideLayer.add(label(-T / 2, cy(y), String(y)));
     this.guideLayer.add(label(-T / 2, -T / 2, 'y\\x').setColor('#8d8aa6'));
   }
+}
+
+let activeScene: GridScene | null = null;
+
+/** 화면(브라우저 좌표)에서 맵이 차지하는 사각형 (좌표 번호 줄 포함). 튜토리얼이 맵을 강조할 때 쓴다 */
+export function mapScreenRect(): { left: number; top: number; width: number; height: number } | null {
+  const sc = activeScene;
+  const level = gameStore.get().levels[0];
+  if (!sc || !level || !sc.sys.isActive()) return null;
+  const cam = sc.cameras.main;
+  const box = sc.game.canvas.getBoundingClientRect();
+  const k = (box.width / sc.scale.width) * cam.zoom; // 월드 1px → 화면 px
+  const left = box.left + (-T - cam.worldView.x) * k;
+  const top = box.top + (-T - cam.worldView.y) * k;
+  return { left, top, width: (level.width + 1) * T * k, height: (level.height + 1) * T * k };
 }
 
 const ids = new WeakMap<object, number>();

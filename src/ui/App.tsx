@@ -8,6 +8,8 @@ import { runCode, stepBy, togglePlay } from '../game/play';
 import { ReplayBar, ResultCard, StageHud } from './Hud';
 import { SidePanel } from './SidePanel';
 import { Overlays, Toasts } from './Overlays';
+import { Guide } from './Guide';
+import { guideStore } from '../state/guide';
 
 export default function App() {
   const host = useRef<HTMLDivElement>(null);
@@ -17,7 +19,7 @@ export default function App() {
     // 캔버스 글씨도 UI 와 같은 글꼴을 쓰도록 미리 불러 둔다
     document.fonts?.load('40px Jua', '0123456789+-?쿵효과없음').catch(() => {});
     const game = createGame(host.current!);
-    if (import.meta.env.DEV) Object.assign(window, { __game: game, __play: play, __stores: { gameStore, codeStore, uiStore, progressStore } });
+    if (import.meta.env.DEV) Object.assign(window, { __game: game, __play: play, __stores: { gameStore, codeStore, uiStore, progressStore, guideStore } });
 
     // 패널을 접고 펼 때 캔버스 크기 다시 맞추기
     const ro = new ResizeObserver(() => game.scale.refresh());
@@ -79,6 +81,7 @@ export default function App() {
         <SidePanel />
       </div>
       <Overlays />
+      <Guide />
     </div>
   );
 }
