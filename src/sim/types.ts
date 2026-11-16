@@ -26,6 +26,7 @@ export type LookResult = 'wall' | 'empty' | 'chest' | 'exit' | 'door' | 'key' | 
 
 /** content() 에 넘겨주는, 맵에서 찾은 표지판·석판·비밀 문 위치 (위→아래, 왼→오른 순서) */
 export interface ContentSlots {
+  /** 랜덤 칸('?')까지 뽑은 뒤의 ASCII 맵 */
   rows: string[];
   signs: Pos[];
   tablets: Pos[];

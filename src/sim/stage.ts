@@ -60,19 +60,23 @@ export function buildLevel(def: StageDef, seed: number): Level {
     signs: [],
     gates: [],
   };
-  const slots: ContentSlots = { rows, signs: [], tablets: [], gates: [] };
+  /** 랜덤 칸을 뽑은 뒤의 맵 (content 에 넘긴다) */
+  const resolved: string[] = [];
+  const slots: ContentSlots = { rows: resolved, signs: [], tablets: [], gates: [] };
   let starts = 0;
   let exits = 0;
 
   // 위→아래, 왼→오른 순서로 랜덤을 뽑으므로 같은 시드는 항상 같은 맵이 된다
   rows.forEach((row, y) => {
     const line: Terrain[] = [];
+    let out = '';
     [...row].forEach((raw, x) => {
       let ch = raw;
       if (ch in random) {
         level.randomCells.push({ x, y });
         ch = rng.pick(random[ch]);
       }
+      out += ch;
       const here: Pos = { x, y };
       if (ch in TERRAIN_CHAR) {
         line.push(TERRAIN_CHAR[ch]);
@@ -92,6 +96,7 @@ export function buildLevel(def: StageDef, seed: number): Level {
       } else fail(`알 수 없는 문자 ${JSON.stringify(ch)} (x=${x}, y=${y})`);
     });
     terrain.push(line);
+    resolved.push(out);
   });
 
   // 표지판·석판·비밀 문의 내용 (랜덤 칸을 다 뽑은 뒤 같은 rng 로 만들므로 시드가 같으면 내용도 같다)
