@@ -204,6 +204,14 @@ function Controls() {
 
 // ---------------------------------------------------------------- 결과 카드
 
+/** 실패한 맵에서 비밀 문 암호가 틀렸다면 그 이유를 알려 주는 한 줄 (2부) */
+function gateTip(result: NonNullable<ReturnType<typeof gameStore.get>['result']>): string | null {
+  const steps = result.runs.filter((r) => !r.summary.cleared).flatMap((r) => r.summary.trace);
+  if (steps.some((t) => t.typeMismatch)) return '값은 맞는데 자료형이 달라요! "42"(문자열)와 42(정수)는 다른 값이에요. int() 나 str() 로 바꿔 보세요.';
+  if (steps.some((t) => t.event === 'gate_wrong')) return '비밀 문에 틀린 암호를 넣었어요(경보, HP −1). print() 로 넣으려는 값을 먼저 확인해 보세요.';
+  return null;
+}
+
 export function ResultCard() {
   const phase = useStore(gameStore, (s) => s.phase);
   const hidden = useStore(gameStore, (s) => s.resultHidden);
@@ -302,7 +310,8 @@ export function ResultCard() {
             {err.error}
           </div>
         )}
-        {!err && someCleared && (
+        {!err && gateTip(result) && <div className="tip-line">💡 {gateTip(result)}</div>}
+        {!err && !gateTip(result) && someCleared && (
           <div className="tip-line">💡 맵마다 ? 칸이나 길이가 달라요. 한 맵에만 맞춘 코드가 아닌지, look() 으로 살펴보며 움직여 보세요.</div>
         )}
         <div className="result-actions">

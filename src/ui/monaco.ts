@@ -48,7 +48,7 @@ export function setAllowedApi(names: string[]) {
 }
 
 const DIRS = ['up', 'down', 'left', 'right'];
-const LOOK_VALUES = ['empty', 'wall', 'exit', 'chest', 'key', 'door', ...MONSTER_KINDS];
+const LOOK_VALUES = ['empty', 'wall', 'exit', 'chest', 'key', 'door', 'sign', 'tablet', 'gate', ...MONSTER_KINDS];
 
 monaco.languages.registerCompletionItemProvider('python', {
   triggerCharacters: ['"', "'"],
@@ -62,7 +62,7 @@ monaco.languages.registerCompletionItemProvider('python', {
     });
 
     if (/cast\(\s*["']\w*$/.test(before)) return words(['fireball', 'icebolt'], 'fireball = 불(슬라임 약점), icebolt = 얼음(박쥐·외눈 거인 약점)');
-    if (/(look\(|cast\(\s*["']\w+["']\s*,)\s*["']\w*$/.test(before)) return words(DIRS, '방향');
+    if (/(look\(|read\(|open_gate\(|move\(|cast\(\s*["']\w+["']\s*,)\s*["']\w*$/.test(before)) return words(DIRS, '방향');
     if (/[=!]=\s*["']\w*$/.test(before)) return words(LOOK_VALUES, 'look() 이 돌려주는 값');
     if (/["']\w*$/.test(before)) return { suggestions: [] };
 

@@ -1,7 +1,7 @@
 // 탑다운 그리드 렌더러. 게임 규칙은 모르고, gameStore 의 맵(Level)과 실행 기록(trace)만 보고 그린다.
 //  - 재생이 한 칸씩 앞으로 가면 애니메이션, 그 밖(되감기·건너뛰기)은 boardAt 으로 즉시 다시 그림
 import Phaser from 'phaser';
-import { boardAt, initialBoard, type BoardState, type Level, type Pos, type TraceStep } from '../../sim';
+import { boardAt, initialBoard, type BoardState, type Level, type Pos, type SignValue, type TraceStep } from '../../sim';
 import { currentTrace, gameStore, uiStore } from '../../state/store';
 import { FONT, makeDotTexture } from '../systems/effects';
 
@@ -20,6 +20,9 @@ export const TILE = {
   slime: 108,
   bat: 120,
   giant: 109,
+  sign: 66, // 나무 표지판 (2부)
+  tablet: 65, // 돌 석판 (2부)
+  gate: 46, // 비밀 문 = 큰 문 + 코드로 그린 자물쇠 (2부)
 } as const;
 
 const SFX = ['bump', 'coin', 'disappear', 'gem', 'hurt', 'jump-high', 'magic', 'select'] as const;
@@ -41,11 +44,16 @@ export class GridScene extends Phaser.Scene {
   private things = new Map<string, Phaser.GameObjects.Sprite | Phaser.GameObjects.Image>();
   private hpBars = new Map<string, Phaser.GameObjects.Graphics>();
   private marks: Phaser.GameObjects.GameObject[] = [];
+  /** 표지판 칸("x,y") → 그 위의 ? 표시 (읽으면 지운다) */
+  private signMarks = new Map<string, Phaser.GameObjects.GameObject[]>();
+  private bubbles: Phaser.GameObjects.Container[] = [];
 
   private level: Level | null = null;
   private shownKey = '';
   private shownStep = -1;
   private board: BoardState | null = null;
+  /** 마지막으로 drawObjects 한 조건 (확대 배율이 바뀌면 같은 장면을 다시 그린다) */
+  private lastDraw: { plan: boolean; last?: TraceStep } = { plan: true };
 
   constructor() {
     super('grid');
@@ -59,6 +67,7 @@ export class GridScene extends Phaser.Scene {
   create() {
     makeDotTexture(this);
     makeKeyTexture(this);
+    makeLockTexture(this);
     this.cameras.main.setBackgroundColor('#2a2236');
     this.cameras.main.setRoundPixels(true);
     this.terrainLayer = this.add.container(0, 0);
@@ -120,10 +129,11 @@ export class GridScene extends Phaser.Scene {
     if (key !== this.shownKey || level !== this.level) {
       this.shownKey = key;
       this.level = level;
+      this.board = null; // 맵이 바뀌면 지난 장면을 fit() 에서 다시 그리지 않게
       this.drawTerrain(level);
       this.shownStep = step;
       this.board = boardAt(level, trace, step);
-      this.drawObjects(this.board, !showRun);
+      this.drawObjects(this.board, !showRun, trace[step - 1]);
       return;
     }
     if (step === this.shownStep) return;
@@ -133,7 +143,7 @@ export class GridScene extends Phaser.Scene {
       this.animate(trace[step - 1], prev, s.speed);
     } else {
       this.board = boardAt(level, trace, step);
-      this.drawObjects(this.board, false);
+      this.drawObjects(this.board, false, trace[step - 1]);
     }
     this.shownStep = step;
   }
@@ -146,6 +156,12 @@ export class GridScene extends Phaser.Scene {
           this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', TILE.wall));
           return;
         }
+        if (t === 'sign' || t === 'tablet') {
+          // 벽 줄에 박힌 표지판·석판: 벽 위에 그린다
+          this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', TILE.wall));
+          this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', TILE[t]));
+          return;
+        }
         const h = (x * 73856093) ^ (y * 19349663);
         const alt = Math.abs(h) % 7 === 0 ? TILE.floorAlt[Math.abs(h) % TILE.floorAlt.length] : TILE.floor;
         this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', alt));
@@ -156,7 +172,8 @@ export class GridScene extends Phaser.Scene {
   }
 
   /** 움직이는 것들(상자·열쇠·문·몬스터·플레이어)을 board 상태 그대로 다시 그린다 */
-  private drawObjects(board: BoardState, plan: boolean) {
+  private drawObjects(board: BoardState, plan: boolean, last?: TraceStep) {
+    this.lastDraw = { plan, last };
     // 진행 중이던 연출을 끊으면 onComplete 가 불리지 않으므로, 연출용 오브젝트는 여기서 직접 지운다
     this.tweens.killAll();
     this.time.removeAllEvents();
@@ -167,9 +184,14 @@ export class GridScene extends Phaser.Scene {
     this.things.clear();
     this.hpBars.clear();
     this.marks = [];
+    this.signMarks.clear();
+    this.bubbles = [];
     const hidden = new Set(plan && this.level ? this.level.randomCells.map(keyOf) : []);
 
     for (const d of board.doors) if (!d.open) this.addThing(`d:${keyOf(d)}`, d, TILE.door);
+    for (const g of board.gates) if (!g.open) this.addGate(g);
+    // 아직 읽지 않은 표지판·석판에는 ? 말풍선 (내용은 read() 로만 알 수 있다)
+    if (this.level) for (const sg of this.level.signs) if (!board.read.includes(keyOf(sg))) this.addSignMark(sg);
     for (const c of board.chests) if (!hidden.has(keyOf(c))) this.addThing(`c:${keyOf(c)}`, c, c.open ? TILE.chestOpen : TILE.chest);
     for (const k of board.keyItems) if (!hidden.has(keyOf(k))) this.addThing(`k:${keyOf(k)}`, k, 'key');
     for (const m of board.monsters) {
@@ -188,6 +210,80 @@ export class GridScene extends Phaser.Scene {
       .setAngle(board.hp > 0 ? 0 : 90)
       .clearTint();
     this.objLayer.bringToTop(this.player);
+    // 되감기·건너뛰기로 읽기/암호 장면에 멈췄으면 말풍선도 그대로 보여 준다
+    if (last && !plan) this.stepBubble(last, false);
+  }
+
+  /** 비밀 문 + 자물쇠 */
+  private addGate(p: Pos) {
+    this.addThing(`g:${keyOf(p)}`, p, TILE.gate);
+    const lock = this.add.image(cx(p.x), cy(p.y) + 2, 'lock');
+    this.objLayer.add(lock);
+    this.things.set(`gl:${keyOf(p)}`, lock);
+  }
+
+  /** 표지판·석판 위의 작은 ? 말풍선. 읽으면 지우도록 칸 좌표로 기억한다 */
+  private addSignMark(p: Pos) {
+    const x = cx(p.x) + 5;
+    const y = cy(p.y) - 6;
+    const bg = this.add.circle(x, y, 4, 0xf4eeda, 0.95).setStrokeStyle(0.75, 0x353541);
+    const t = this.add
+      .text(x, y + 0.3, '?', { fontFamily: FONT, fontSize: '40px', color: '#353541' })
+      .setOrigin(0.5)
+      .setScale(0.17);
+    this.objLayer.add([bg, t]);
+    this.signMarks.set(keyOf(p), [bg, t]);
+    this.marks.push(bg, t);
+    this.tweens.add({ targets: [bg, t], y: '-=1', duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  /** read · open_gate 장면의 말풍선 (재생 중 그 턴 동안 떠 있다) */
+  private stepBubble(step: TraceStep, fresh: boolean) {
+    const t = step.target;
+    if (step.event === 'read' && step.value !== undefined) {
+      this.bubble(t, formatValue(step.value), '#353541', 0xf4eeda, fresh);
+    } else if (step.event === 'gate_wrong') {
+      const why = step.typeMismatch ? '자료형이 달라요!' : '틀린 암호!';
+      this.bubble(t, `${step.shown ?? ''}  ✘ ${why}`, '#ffffff', 0xc0392b, fresh);
+    } else if (step.event === 'gate_open') {
+      this.bubble(t, `${step.shown ?? ''}  ✔ 열림!`, '#353541', 0x7ee2a0, fresh);
+    }
+  }
+
+  /** 화면 기준 글자 크기의 말풍선. 칸 위에 띄우고, 위쪽 HUD 에 가리면 칸 아래에 띄운다 */
+  private bubble(cell: Pos, text: string, color: string, fill: number, pop: boolean) {
+    const cam = this.cameras.main;
+    const z = cam.zoom;
+    const s = 15 / 48 / z; // 화면에서 약 15px 글자
+    const label = this.add
+      .text(0, 0, text, { fontFamily: FONT, fontSize: '48px', color, align: 'left', lineSpacing: 6 })
+      .setOrigin(0.5, 0)
+      .setScale(s);
+    const pad = 7 / z;
+    const w = label.width * s + pad * 2;
+    const h = label.height * s + pad * 2;
+    const tail = 5 / z;
+    const x = cx(cell.x);
+    // 맵 밖으로 너무 나가지 않게 가로 위치를 맞춘다
+    const mapW = (this.level?.width ?? 0) * T;
+    const left = Math.max(-T, Math.min(x - w / 2, mapW + T - w));
+    const above = cell.y * T - 1 - tail - h >= cam.worldView.y + 100 / z; // 위 HUD 높이만큼 비켜서
+    const tip = above ? cell.y * T - 1 : (cell.y + 1) * T + 1; // 꼬리 끝
+    const top = above ? tip - tail - h : tip + tail;
+    const base = above ? tip - tail - 1 / z : tip + tail + 1 / z; // 꼬리 밑변
+    const g = this.add.graphics();
+    g.fillStyle(0x353541, 0.35).fillRoundedRect(left + 1 / z, top + 2 / z, w, h, 4 / z);
+    g.fillStyle(fill, 1).fillRoundedRect(left, top, w, h, 4 / z);
+    g.lineStyle(1.5 / z, 0x353541, 1).strokeRoundedRect(left, top, w, h, 4 / z);
+    g.fillStyle(fill, 1).fillTriangle(x - tail, base, x + tail, base, x, tip);
+    label.setPosition(left + w / 2, top + pad);
+    const box = this.add.container(0, 0, [g, label]).setDepth(60);
+    this.bubbles.push(box);
+    this.fxLayer.add(box);
+    if (pop) {
+      box.setAlpha(0);
+      this.tweens.add({ targets: box, alpha: 1, duration: 120 });
+    }
   }
 
   private addThing(id: string, p: Pos, frame: number | 'key') {
@@ -230,6 +326,9 @@ export class GridScene extends Phaser.Scene {
   private animate(step: TraceStep, prev: BoardState, speed: number) {
     const d = 260 / speed;
     const p = this.player;
+    // 지난 턴의 말풍선(읽기·암호)은 다음 턴이 시작되면 내린다
+    for (const b of this.bubbles) b.destroy();
+    this.bubbles = [];
     this.tweens.killTweensOf(p);
     p.setPosition(cx(prev.pos.x), cy(prev.pos.y)).setAngle(0).setAlpha(1).clearTint();
     if (step.dir === 'left' || step.dir === 'right') p.setFlipX(step.dir === 'left');
@@ -289,6 +388,40 @@ export class GridScene extends Phaser.Scene {
       case 'miss':
         this.cast(step, d, tx, ty, tk);
         break;
+      case 'read': {
+        for (const m of this.signMarks.get(tk) ?? []) {
+          this.tweens.killTweensOf(m);
+          m.destroy();
+        }
+        this.signMarks.delete(tk);
+        this.stepBubble(step, true);
+        this.play('select');
+        break;
+      }
+      case 'gate_open': {
+        this.stepBubble(step, true);
+        for (const id of [`g:${tk}`, `gl:${tk}`]) {
+          const o = this.things.get(id);
+          this.things.delete(id);
+          if (o) this.tweens.add({ targets: this.retire(o), alpha: 0, scaleY: 0.2, duration: d, delay: d * 0.3, onComplete: () => o.destroy() });
+        }
+        this.spark(tx, ty, 0xb48cff, 18, 55);
+        this.play('magic');
+        break;
+      }
+      case 'gate_wrong': {
+        this.stepBubble(step, true);
+        const lock = this.things.get(`gl:${tk}`);
+        if (lock) this.tweens.add({ targets: lock, x: lock.x + 1.2, duration: 50, yoyo: true, repeat: 3 });
+        p.setTint(0xff6b6b);
+        this.time.delayedCall(d, () => p.clearTint());
+        this.say(cx(prev.pos.x), cy(prev.pos.y) - 8, '-1', '#ff8f8f', 7);
+        this.cameras.main.flash(220, 229, 67, 65);
+        this.cameras.main.shake(160, 0.006);
+        this.play('hurt');
+        if (step.hp <= 0) this.tweens.add({ targets: p, angle: 90, alpha: 0.45, delay: d, duration: 300 });
+        break;
+      }
     }
   }
 
@@ -394,9 +527,12 @@ export class GridScene extends Phaser.Scene {
     const zx = (w - 48) / ((this.level.width + 2) * T);
     const zy = (h - top - bottom) / ((this.level.height + 2) * T);
     const z = Math.max(1, Math.min(7, Math.floor(Math.min(zx, zy))));
+    const zoomChanged = cam.zoom !== z;
     cam.setZoom(z);
     cam.centerOn((this.level.width * T) / 2 - T / 2, (this.level.height * T) / 2 - T / 2 - (top - bottom) / (2 * z));
     this.drawGuides(z);
+    // 글자·말풍선 크기는 배율에 맞춰 만들었으므로, 배율이 바뀌면 지금 장면을 다시 그린다
+    if (zoomChanged && this.board) this.drawObjects(this.board, this.lastDraw.plan, this.lastDraw.last);
   }
 
   /**
@@ -433,6 +569,42 @@ function resultId(r: object | null) {
   if (!r) return 0;
   if (!ids.has(r)) ids.set(r, nextId++);
   return ids.get(r)!;
+}
+
+/** 말풍선용: 파이썬이 print 하는 모양 그대로 (문자열은 '12', 리스트는 [...]). 긴 리스트는 줄을 나눈다 */
+export function formatValue(v: SignValue): string {
+  const one = (x: string | number) => (typeof x === 'string' ? `'${x}'` : String(x));
+  if (!Array.isArray(v)) return one(v);
+  const perLine = 5;
+  const lines: string[] = [];
+  for (let i = 0; i < v.length; i += perLine) lines.push(v.slice(i, i + perLine).map(one).join(', '));
+  return '[' + lines.join(',\n ') + ']';
+}
+
+/** 비밀 문 자물쇠 (보라 몸통 + 금색 고리, Kenney 팔레트 외곽선) */
+function makeLockTexture(scene: Phaser.Scene) {
+  if (scene.textures.exists('lock')) return;
+  const px = [
+    '.....####.....',
+    '....#yyyy#....',
+    '...#y#..#y#...',
+    '...#y#..#y#...',
+    '..##########..',
+    '..#pppppppp#..',
+    '..#pppyyppp#..',
+    '..#ppp##ppp#..',
+    '..#pppppppp#..',
+    '..##########..',
+  ];
+  const col: Record<string, number> = { '#': 0x353541, y: 0xffc533, p: 0x9b6bff };
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  px.forEach((row, y) =>
+    [...row].forEach((c, x) => {
+      if (c !== '.') g.fillStyle(col[c]).fillRect(x + 1, y + 3, 1, 1);
+    }),
+  );
+  g.generateTexture('lock', T, T);
+  g.destroy();
 }
 
 /** 팩에 열쇠 그림이 없어 16×16 픽셀 열쇠를 코드로 그린다 (Kenney 팔레트 색) */
