@@ -60,6 +60,9 @@ export function runStageWith(runStage: PyRunStage, code: string, levels: Level[]
       move: (dir: unknown, ln?: number | null) => guard(ln, () => (world.move(dir), '')),
       cast: (skill: unknown, dir: unknown, ln?: number | null) => guard(ln, () => (world.cast(skill, dir), '')),
       look: (dir: unknown, ln?: number | null) => guard(ln, () => world.look(dir)),
+      read: (dir: unknown, ln?: number | null) => guard(ln, () => 'VAL:' + JSON.stringify(world.read(dir))),
+      open_gate: (dir: unknown, kind: string, json: string, shown: string, ln?: number | null) =>
+        guard(ln, () => (world.openGate(dir, gateValue(kind, json), shown), '')),
       hp: () => world.hp,
       coins: () => world.coins,
       keys: () => world.keys,
@@ -72,6 +75,15 @@ export function runStageWith(runStage: PyRunStage, code: string, levels: Level[]
     return { seed: level.seed, summary, out: r.out, error: r.error, line: r.line, kind: r.kind };
   });
   return { ok: runs.every((r) => r.summary.cleared), runs };
+}
+
+/**
+ * 파이썬이 넘긴 암호(종류, JSON)를 JS 값으로. int·str 만 그대로 바꾸고,
+ * 나머지(float·bool·list …)는 어떤 암호와도 같지 않은 표시 객체로 만든다 (자료형까지 비교하기 위해).
+ */
+function gateValue(kind: string, json: string): unknown {
+  if (kind === 'int' || kind === 'str') return JSON.parse(json);
+  return { pythonType: kind };
 }
 
 /** 워커가 강제로 멈췄을 때처럼 파이썬 결과가 아예 없을 때의 결과 */

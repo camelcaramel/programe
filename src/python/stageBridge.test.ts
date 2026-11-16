@@ -211,3 +211,66 @@ describe('오류', () => {
     expect(r.runs[0].error).toMatch(/아직 배우지 않은 명령/);
   });
 });
+
+describe('2부 명령: read · open_gate · move', () => {
+  const part2 = (map: string[], content: StageDef['content']) => stage(map, { content });
+  const signs = part2(['#TM##', '#S.GE', '#####'], () => ({ signs: ['12'], tablets: [['right', 7]], gates: [12] }));
+
+  it('read 는 표지판을 str, 석판을 list 로 돌려준다', () => {
+    const r = run(
+      strip(`
+s = read("up")
+move_right()
+t = read("up")
+print(type(s) == str, s, type(t) == list, t, len(t))
+`),
+      signs,
+    );
+    expect(r.runs[0].error).toBeNull();
+    expect(r.runs[0].out).toEqual(["True 12 True ['right', 7] 2"]);
+    expect(r.runs[0].summary.trace.map((t) => [t.event, t.line])).toEqual([
+      ['read', 1],
+      ['move', 2],
+      ['read', 3],
+    ]);
+  });
+
+  it('int() 로 바꾼 값은 맞고, 문자열 그대로는 자료형이 달라 경보', () => {
+    const ok = run('n = int(read("up"))\nmove_right()\nopen_gate("right", n)\nmove_right()\nmove_right()\n', signs);
+    expect(ok.ok).toBe(true);
+    const bad = run('n = read("up")\nmove_right()\nopen_gate("right", n)\nmove_right()\nmove_right()\n', signs);
+    expect(bad.ok).toBe(false);
+    const step = bad.runs[0].summary.trace[2];
+    expect(step).toMatchObject({ event: 'gate_wrong', shown: "'12'", typeMismatch: true, hp: 2 });
+  });
+
+  it('float·bool 은 같은 수여도 맞지 않는다', () => {
+    const g = part2(['S.G.E'], () => ({ gates: [1] }));
+    const r = run('move_right()\nopen_gate("right", 1.0)\nopen_gate("right", True)\nopen_gate("right", 1)\n', g);
+    expect(r.runs[0].summary.trace.map((t) => t.event)).toEqual(['move', 'gate_wrong', 'gate_wrong', 'gate_open']);
+    expect(r.runs[0].summary.hp).toBe(1);
+  });
+
+  it('move(방향) 으로 리스트를 따라간다', () => {
+    const r = run('for d in ["right", "down", "right"]:\n    move(d)\n', stage(['S.#', '#.E']));
+    expect(r.ok).toBe(true);
+  });
+
+  it('read 를 표지판이 아닌 곳에 쓰면 친절한 오류', () => {
+    const r = run('read("right")\n', signs);
+    expect(r.runs[0].error).toMatch(/표지판이나 석판만/);
+    expect(r.runs[0].line).toBe(1);
+  });
+
+  it('문자열 + 숫자, 리스트 번호 넘침, int("abc") 오류를 한국어로', () => {
+    expect(run('x = "12" + 3\n', signs).runs[0].error).toMatch(/int\(\) 로 바꿔/);
+    expect(run('x = 3 + "12"\n', signs).runs[0].error).toMatch(/int\(\) 로 바꿔/);
+    expect(run('x = [1, 2][2]\n', signs).runs[0].error).toMatch(/0부터/);
+    expect(run('x = int("abc")\n', signs).runs[0].error).toMatch(/숫자로 된 글자만/);
+  });
+
+  it('배우지 않은 2부 명령은 이름을 알려 준다', () => {
+    const r = run('move("right")\n', signs, { time_limit: 0.3, api: ['move_right', 'read', 'open_gate'] });
+    expect(r.runs[0].error).toMatch(/move 은\(는\) 아직 배우지 않은 명령/);
+  });
+});

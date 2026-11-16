@@ -16,7 +16,7 @@ FILENAME = "<내 코드>"
 _SAFE_NAMES = [
     "abs", "all", "any", "bool", "dict", "divmod", "enumerate", "filter", "float",
     "int", "isinstance", "len", "list", "map", "max", "min", "pow", "range",
-    "reversed", "round", "set", "sorted", "str", "sum", "tuple", "zip",
+    "reversed", "round", "set", "sorted", "str", "sum", "tuple", "type", "zip",
     "Exception", "ValueError", "TypeError", "KeyError", "IndexError",
     "ZeroDivisionError", "RuntimeError", "NameError", "AttributeError",
     "__build_class__", "object", "True", "False", "None",
@@ -27,6 +27,7 @@ DIR_NAMES = ("up", "down", "left", "right")
 STAGE_API_NAMES = (
     "move_up", "move_down", "move_left", "move_right",
     "look", "cast", "get_hp", "get_pos", "get_coins", "get_keys", "print",
+    "read", "open_gate", "move",
 )
 
 
@@ -65,6 +66,13 @@ def _friendly(e):
         return "0 으로 나눌 수 없어요."
     if isinstance(e, AttributeError):
         return f"없는 속성이에요: {msg}"
+    if isinstance(e, TypeError) and ("can only concatenate str" in msg or ("unsupported operand" in msg and "'str'" in msg)):
+        return "글자(문자열)와 숫자는 바로 더할 수 없어요. int() 로 바꿔 보세요."
+    if isinstance(e, IndexError):
+        return "리스트에 그 번호의 칸이 없어요. 번호는 0부터 세요. (리스트 길이는 len() 으로 알 수 있어요)"
+    if isinstance(e, ValueError) and "invalid literal for int()" in msg:
+        bad = msg.split(":", 1)[1].strip() if ":" in msg else ""
+        return f"int() 는 숫자로 된 글자만 정수로 바꿀 수 있어요. 받은 값: {bad}"
     if isinstance(e, TypeError) and "positional argument" in msg:
         return f"괄호 안에 넣는 값의 개수가 맞지 않아요: {msg}"
     if isinstance(e, TypeError):
@@ -127,6 +135,18 @@ def _check(res):
     return res
 
 
+def _gate_code(code):
+    """open_gate 에 넣은 값을 JS 로 넘길 때 자료형을 잃지 않도록 (종류, JSON) 으로 나눈다.
+    bool 은 int 의 한 종류지만 암호로는 다른 값으로 본다."""
+    if isinstance(code, bool):
+        return "bool", "null"
+    if isinstance(code, int):
+        return "int", json.dumps(code)
+    if isinstance(code, str):
+        return "str", json.dumps(code)
+    return type(code).__name__, "null"
+
+
 def _run_stage(code_str, api, limits_json):
     """시드 하나를 실행한다. 게임 상태는 api 쪽 World 에 남고, 여기서는 오류·출력만 돌려준다."""
     limits = json.loads(limits_json)
@@ -154,6 +174,20 @@ def _run_stage(code_str, api, limits_json):
     def cast(skill, direction):
         _check(api.cast(skill, direction, _student_line()))
 
+    def move(direction):
+        _check(api.move(direction, _student_line()))
+
+    def read(direction):
+        res = _check(api.read(direction, _student_line()))
+        return json.loads(res[4:])  # "VAL:<json>" -> str 또는 list
+
+    def open_gate(direction, code):
+        kind, value = _gate_code(code)
+        shown = repr(code)
+        if len(shown) > 40:
+            shown = shown[:37] + "..."
+        _check(api.open_gate(direction, kind, value, shown, _student_line()))
+
     def get_hp():
         return int(api.hp())
 
@@ -170,6 +204,7 @@ def _run_stage(code_str, api, limits_json):
         "move_up": move_up, "move_down": move_down, "move_left": move_left, "move_right": move_right,
         "look": look, "cast": cast, "get_hp": get_hp, "get_pos": get_pos,
         "get_coins": get_coins, "get_keys": get_keys, "print": _print,
+        "move": move, "read": read, "open_gate": open_gate,
     }
     allowed = limits.get("api") or list(STAGE_API_NAMES)
     safe = dict(_SAFE)
