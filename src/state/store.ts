@@ -40,7 +40,7 @@ export type Screen = 'title' | 'select' | 'play';
  * plan    : 맵을 보며 코드를 쓰는 중
  * running : 파이썬 실행 중 (결과 기다림)
  * replay  : 실행 기록 재생 중
- * done    : 재생이 끝나고 결과 카드를 보여 주는 중
+ * done    : 재생이 끝나고 맵 아래에 결과를 보여 주는 중
  */
 export type PlayPhase = 'plan' | 'running' | 'replay' | 'done';
 export type Speed = 1 | 2 | 4;
@@ -61,8 +61,6 @@ export interface GameState {
   step: number;
   playing: boolean;
   speed: Speed;
-  /** 재생 끝에 결과 카드를 닫았는지 */
-  resultHidden: boolean;
 }
 
 export const gameStore = createStore<GameState>({
@@ -77,7 +75,6 @@ export const gameStore = createStore<GameState>({
   step: 0,
   playing: false,
   speed: 1,
-  resultHidden: false,
 });
 
 /** 지금 보고 있는 시드의 실행 기록 */
@@ -100,16 +97,38 @@ export interface UiState {
   muted: boolean;
   /** 맵에 격자와 좌표 번호 표시 */
   showGrid: boolean;
+  /** 코드 창 폭(px). null 이면 화면 크기에 맞춘 기본 폭 */
+  panelWidth: number | null;
+  /** 에디터 글자 크기(px) */
+  editorFontSize: number;
+}
+
+export const EDITOR_FONT = { min: 13, max: 25, step: 2, base: 17 } as const;
+/** 코드 창을 끌어서 조절할 때의 한계: 코드 창 최소 폭, 맵 쪽에 남길 최소 폭 */
+export const PANEL_LIMIT = { min: 420, stageMin: 560 } as const;
+export function clampPanelWidth(w: number, viewport = window.innerWidth): number {
+  return Math.round(Math.max(PANEL_LIMIT.min, Math.min(viewport - PANEL_LIMIT.stageMin, w)));
 }
 
 const MUTE_KEY = 'programe.muted';
 const GRID_KEY = 'programe.grid';
+const PANEL_KEY = 'programe.panelWidth';
+const FONT_KEY = 'programe.editorFontSize';
 function loadFlag(key: string, fallback: boolean) {
   try {
     const v = localStorage.getItem(key);
     return v === null ? fallback : v === '1';
   } catch {
     return fallback;
+  }
+}
+function loadNumber(key: string): number | null {
+  try {
+    const v = localStorage.getItem(key);
+    const n = v === null ? NaN : Number(v);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
   }
 }
 
@@ -120,12 +139,18 @@ export const uiStore = createStore<UiState>({
   pythonStatus: 'loading',
   muted: loadFlag(MUTE_KEY, false),
   showGrid: loadFlag(GRID_KEY, true),
+  panelWidth: loadNumber(PANEL_KEY),
+  editorFontSize: Math.max(EDITOR_FONT.min, Math.min(EDITOR_FONT.max, loadNumber(FONT_KEY) ?? EDITOR_FONT.base)),
 });
 
 uiStore.subscribe(() => {
   try {
     localStorage.setItem(MUTE_KEY, uiStore.get().muted ? '1' : '0');
     localStorage.setItem(GRID_KEY, uiStore.get().showGrid ? '1' : '0');
+    const { panelWidth, editorFontSize } = uiStore.get();
+    if (panelWidth === null) localStorage.removeItem(PANEL_KEY);
+    else localStorage.setItem(PANEL_KEY, String(panelWidth));
+    localStorage.setItem(FONT_KEY, String(editorFontSize));
   } catch {
     /* 저장소를 못 쓰면 무시 */
   }

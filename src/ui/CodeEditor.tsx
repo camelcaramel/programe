@@ -33,6 +33,9 @@ codeStore.subscribe(() => {
   }
 });
 
+/** 한글까지 같은 폭 규칙(영문 1칸·한글 2칸)으로 그리는 코드 글꼴. style.css 의 --mono 와 같은 순서 */
+export const CODE_FONT = '"D2Coding", "Nanum Gothic Coding", Consolas, monospace';
+
 /** 재생 중 지금 실행되는 줄 */
 function activeLine(): number | null {
   const s = gameStore.get();
@@ -48,13 +51,15 @@ export function CodeEditor() {
   const running = useStore(gameStore, (s) => s.phase === 'running');
   const line = useStore(gameStore, () => activeLine());
   const error = useStore(uiStore, (s) => s.codeError);
+  const fontSize = useStore(uiStore, (s) => s.editorFontSize);
 
   useEffect(() => {
     const ed = monaco.editor.create(host.current!, {
       model: modelFor(gameStore.get().stageId),
       theme: 'programe',
-      fontSize: 15,
-      fontFamily: 'Consolas, "D2Coding", "Cascadia Code", monospace',
+      fontSize: uiStore.get().editorFontSize,
+      fontFamily: CODE_FONT,
+      lineHeight: 1.5,
       minimap: { enabled: false },
       automaticLayout: true,
       scrollBeyondLastLine: false,
@@ -62,16 +67,32 @@ export function CodeEditor() {
       insertSpaces: true,
       renderLineHighlight: 'all',
       padding: { top: 10, bottom: 10 },
-      lineNumbersMinChars: 3,
-      glyphMargin: true,
+      // 줄 번호 영역은 좁게: 코드가 들어갈 폭을 최대한 남긴다
+      lineNumbersMinChars: 2,
+      lineDecorationsWidth: 12,
+      glyphMargin: false,
+      folding: false,
+      // 긴 주석(설명)이 잘리지 않게 창 폭에 맞춰 줄바꿈
+      wordWrap: 'on',
+      wrappingIndent: 'same',
       quickSuggestions: { other: true, strings: true, comments: false },
       fixedOverflowWidgets: true,
     });
     // Ctrl+Enter 실행은 App 의 전역 단축키가 처리한다
     editor.current = ed;
     deco.current = ed.createDecorationsCollection();
-    return () => ed.dispose();
+    // 코드 글꼴(웹폰트)이 늦게 도착하면 글자 폭을 다시 재야 커서 위치가 맞는다
+    let alive = true;
+    void document.fonts?.ready.then(() => alive && monaco.editor.remeasureFonts());
+    return () => {
+      alive = false;
+      ed.dispose();
+    };
   }, []);
+
+  useEffect(() => {
+    editor.current?.updateOptions({ fontSize });
+  }, [fontSize]);
 
   useEffect(() => {
     editor.current?.setModel(modelFor(stageId));
@@ -93,7 +114,7 @@ export function CodeEditor() {
     deco.current.set([
       {
         range: new monaco.Range(line, 1, line, 1),
-        options: { isWholeLine: true, className: 'run-line', glyphMarginClassName: 'run-glyph' },
+        options: { isWholeLine: true, className: 'run-line', linesDecorationsClassName: 'run-glyph' },
       },
     ]);
     editor.current?.revealLineInCenterIfOutsideViewport(line);

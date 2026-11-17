@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { CodeEditor } from './CodeEditor';
 import { codeStore, resetCode } from '../state/codeStore';
-import { clearLog, consoleStore, gameStore, uiStore, useStore, type Tab } from '../state/store';
+import { EDITOR_FONT, clampPanelWidth, clearLog, consoleStore, gameStore, uiStore, useStore, type Tab } from '../state/store';
 import { runCode } from '../game/play';
 import { MONSTER_RULES, MONSTER_KINDS } from '../sim';
 import { countCodeLines, getStage, stageIndex } from '../stages';
@@ -16,13 +16,14 @@ export const tileImg = (n: number) => `${import.meta.env.BASE_URL}assets/kenney/
 export function SidePanel() {
   const open = useStore(uiStore, (s) => s.panelOpen);
   const tab = useStore(uiStore, (s) => s.tab);
+  const width = useStore(uiStore, (s) => s.panelWidth);
 
   if (!open) {
     return (
       <aside className="panel closed">
-        <button className="open-book" title="마법서 펼치기 (Tab)" onClick={() => uiStore.set({ panelOpen: true })}>
+        <button className="open-book" title="코드 창 펼치기 (Tab)" onClick={() => uiStore.set({ panelOpen: true })}>
           <BookIcon />
-          <span className="vertical">마법서 펼치기</span>
+          <span className="vertical">코드 창 펼치기</span>
           <kbd>Tab</kbd>
         </button>
       </aside>
@@ -30,15 +31,15 @@ export function SidePanel() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'code', label: '주문 작성' },
-    { id: 'help', label: '명령 사전' },
+    { id: 'code', label: '코드' },
+    { id: 'help', label: '도움말' },
   ];
   return (
-    <aside className="panel">
+    <aside className="panel" style={width === null ? undefined : ({ '--panel-w': `${width}px` } as CSSProperties)}>
+      <PanelResizer />
       <div className="panel-head">
         <div className="book-title">
           <BookIcon />
-          <span>마법서</span>
         </div>
         <div className="tabs" role="tablist">
           {tabs.map((t) => (
@@ -48,8 +49,8 @@ export function SidePanel() {
           ))}
         </div>
         <div className="head-spacer" />
-        <button className="close-book" title="마법서 덮기 (Tab)" onClick={() => uiStore.set({ panelOpen: false })}>
-          ▶
+        <button className="close-book" title="코드 창 접기 (Tab)" onClick={() => uiStore.set({ panelOpen: false })}>
+          접기 <span aria-hidden>»</span>
         </button>
       </div>
       <div className="page">
@@ -63,18 +64,67 @@ export function SidePanel() {
   );
 }
 
+/** 맵과 코드 창 사이 경계선: 끌어서 코드 창 폭을 바꾼다 (두 번 누르면 기본 폭) */
+function PanelResizer() {
+  const [dragging, setDragging] = useState(false);
+  const setWidth = (w: number) => uiStore.set({ panelWidth: clampPanelWidth(w) });
+  return (
+    <div
+      className={dragging ? 'panel-resizer dragging' : 'panel-resizer'}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="코드 창 폭 조절"
+      title="끌어서 코드 창 폭 조절 · 두 번 누르면 기본 폭"
+      tabIndex={0}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setDragging(true);
+      }}
+      onPointerMove={(e) => {
+        if (dragging) setWidth(window.innerWidth - e.clientX);
+      }}
+      onPointerUp={() => setDragging(false)}
+      onPointerCancel={() => setDragging(false)}
+      onDoubleClick={() => uiStore.set({ panelWidth: null })}
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        e.stopPropagation(); // ← → 는 재생 한 턴 이동 단축키이기도 하다
+        const now = e.currentTarget.parentElement!.getBoundingClientRect().width;
+        setWidth(now + (e.key === 'ArrowLeft' ? 24 : -24));
+      }}
+    />
+  );
+}
+
 export function EngineStatus({ status, long }: { status: 'loading' | 'ready' | 'error'; long?: boolean }) {
   const text =
     status === 'ready'
-      ? long ? '파이썬 마법 엔진 준비 완료!' : '엔진 준비됨'
+      ? long ? '파이썬 준비 완료!' : '파이썬 준비됨'
       : status === 'loading'
-        ? long ? '파이썬 마법 엔진 깨우는 중… (먼저 시작해도 돼요)' : '엔진 깨우는 중…'
-        : long ? '파이썬 엔진을 불러오지 못했어요. 새로고침 해 보세요.' : '엔진 오류';
+        ? long ? '파이썬을 불러오는 중… (먼저 시작해도 돼요)' : '파이썬 준비 중…'
+        : long ? '파이썬을 불러오지 못했어요. 새로고침 해 보세요.' : '파이썬 오류';
   return (
-    <span className={`engine ${status}`} title="파이썬 엔진 (Pyodide)">
+    <span className={`engine ${status}`} title="파이썬 실행기 (Pyodide)">
       <i />
       {text}
     </span>
+  );
+}
+
+/** 실행 버튼. 화면에 늘 하나만 보인다: 코드 창이 열려 있으면 코드 아래, 접혀 있으면 맵 아래 */
+export function RunButton() {
+  const phase = useStore(gameStore, (s) => s.phase);
+  const status = useStore(uiStore, (s) => s.pythonStatus);
+  return (
+    <button className="btn primary run-btn" disabled={status !== 'ready' || phase === 'running'} onClick={() => void runCode()}>
+      {phase === 'running' ? '실행 중…' : status === 'loading' ? '파이썬 준비 중…' : status === 'error' ? '파이썬 오류' : '▶ 실행'}
+      <span className="run-keys">
+        <kbd>Ctrl</kbd>
+        <kbd>Enter</kbd>
+      </span>
+    </button>
   );
 }
 
@@ -83,8 +133,8 @@ export function EngineStatus({ status, long }: { status: 'loading' | 'ready' | '
 function CodeTab() {
   const stageId = useStore(gameStore, (s) => s.stageId);
   const levels = useStore(gameStore, (s) => s.levels);
-  const phase = useStore(gameStore, (s) => s.phase);
   const status = useStore(uiStore, (s) => s.pythonStatus);
+  const fontSize = useStore(uiStore, (s) => s.editorFontSize);
   const code = useStore(codeStore, (s) => s.code[stageId]);
   const stage = getStage(stageId);
   const [hint, setHint] = useState(false);
@@ -93,6 +143,8 @@ function CodeTab() {
   const lines = countCodeLines(code ?? stage.starter);
   const limit = stage.stars?.lines;
   const hasChests = levels.some((l) => l.chests.length > 0);
+  const resize = (delta: number) =>
+    uiStore.set({ editorFontSize: Math.max(EDITOR_FONT.min, Math.min(EDITOR_FONT.max, fontSize + delta)) });
 
   return (
     <div className="code-tab">
@@ -100,10 +152,19 @@ function CodeTab() {
         <div className="brief-head">
           <span className="brief-num">{stageIndex(stageId) + 1}</span>
           <span className="brief-title">{stage.title}</span>
-          <span className="concept">{stage.concept}</span>
+          {stage.concepts?.length ? (
+            <button className="concept" title="이 스테이지의 새 개념 카드를 다시 봐요" onClick={() => showConcept(stageId)}>
+              {stage.concept} <small>설명 보기</small>
+            </button>
+          ) : (
+            <span className="concept">{stage.concept}</span>
+          )}
+          <button className="btn ghost small hint-btn" aria-expanded={hint} onClick={() => setHint(!hint)}>
+            {hint ? '힌트 접기' : '힌트 보기'}
+          </button>
         </div>
         <p className="brief-goal">{stage.goal}</p>
-        <ul className="brief-stars">
+        <ul className="brief-stars" aria-label="별을 받는 조건">
           {starRules(stage, hasChests).map((r) => (
             <li key={r}>
               <StarIcon on />
@@ -111,40 +172,38 @@ function CodeTab() {
             </li>
           ))}
         </ul>
-        {hint && <div className="brief-hint">💡 {stage.hint}</div>}
-        <div className="brief-links">
-          {!hint && (
-            <button className="link dark" onClick={() => setHint(true)}>
-              💡 힌트 보기
-            </button>
-          )}
-          {stage.concepts?.length ? (
-            <button className="link dark" onClick={() => showConcept(stageId)}>
-              📘 새 개념 다시 보기
-            </button>
-          ) : null}
-        </div>
+        {hint && (
+          <div className="brief-hint">
+            <b>힌트</b> {stage.hint}
+          </div>
+        )}
       </div>
 
       <div className="slate editor-wrap">
         <div className="slate-head">
           <span>
-            <span className="dot">✦</span> 내 주문 ·{' '}
+            내 코드 ·{' '}
             <span className={limit && lines > limit ? 'over' : ''}>
-              {lines}줄{limit ? ` / ★ ${limit}줄` : ''}
+              {lines}줄{limit ? ` / 별 조건 ${limit}줄 이하` : ''}
             </span>
           </span>
-          <EngineStatus status={status} />
+          <span className="slate-tools">
+            <EngineStatus status={status} />
+            <span className="font-size" role="group" aria-label="코드 글자 크기">
+              <button onClick={() => resize(-EDITOR_FONT.step)} disabled={fontSize <= EDITOR_FONT.min} title="코드 글자 작게" aria-label="코드 글자 작게">
+                A−
+              </button>
+              <button onClick={() => resize(EDITOR_FONT.step)} disabled={fontSize >= EDITOR_FONT.max} title="코드 글자 크게" aria-label="코드 글자 크게">
+                A+
+              </button>
+            </span>
+          </span>
         </div>
         <CodeEditor />
       </div>
 
       <div className="run-row">
-        <button className="btn primary run-btn" disabled={status !== 'ready' || phase === 'running'} onClick={() => void runCode()}>
-          {phase === 'running' ? '주문 외우는 중…' : status !== 'ready' ? '엔진 깨우는 중…' : '▶ 실행'}
-          <kbd>Ctrl</kbd>
-          <kbd>Enter</kbd>
-        </button>
+        <RunButton />
         <ResetButton stageId={stageId} />
       </div>
       <Console />
@@ -176,37 +235,49 @@ function ResetButton({ stageId }: { stageId: string }) {
   );
 }
 
+/** print() 출력·맵별 결과·오류. 내용이 없을 땐 머리줄만 남겨 코드 창에 자리를 내준다 */
 function Console() {
   const lines = useStore(consoleStore, (s) => s.lines);
+  // null = 자동(내용이 있으면 펼침), true/false = 사용자가 직접 펼치거나 접음
+  const [manual, setManual] = useState<boolean | null>(null);
   const end = useRef<HTMLDivElement>(null);
+  const open = manual ?? lines.length > 0;
+  const errors = lines.filter((l) => l.kind === 'error').length;
   useEffect(() => {
+    if (lines.length === 0) setManual(null);
     end.current?.scrollIntoView({ block: 'nearest' });
   }, [lines]);
   return (
-    <div className="slate console">
+    <div className={open ? 'slate console' : 'slate console folded'}>
       <div className="slate-head">
-        <span>
-          <span className="dot">✦</span> 주문 기록
-        </span>
-        <button className="link" onClick={clearLog}>
-          지우기
+        <button className="console-toggle" aria-expanded={open} onClick={() => setManual(!open)}>
+          <span aria-hidden>{open ? '▾' : '▸'}</span> 실행 결과
+          {lines.length > 0 && <span className="console-count">{lines.length}줄</span>}
+          {!open && errors > 0 && <span className="console-count bad">오류 {errors}</span>}
+          {lines.length === 0 && <span className="console-empty">print() 출력과 오류가 여기에 나와요</span>}
         </button>
+        {open && lines.length > 0 && (
+          <button className="link" onClick={clearLog}>
+            지우기
+          </button>
+        )}
       </div>
-      <div className="console-body">
-        {lines.length === 0 && <div className="console-empty">print() 결과와 맵별 결과, 오류가 여기에 적혀요.</div>}
-        {lines.map((l) => (
-          <div key={l.id} className={`log log-${l.kind}`}>
-            {l.source && <span className="log-src">{l.source}</span>}
-            <span className="log-text">{l.text}</span>
-          </div>
-        ))}
-        <div ref={end} />
-      </div>
+      {open && (
+        <div className="console-body">
+          {lines.map((l) => (
+            <div key={l.id} className={`log log-${l.kind}`}>
+              {l.source && <span className="log-src">{l.source}</span>}
+              <span className="log-text">{l.text}</span>
+            </div>
+          ))}
+          <div ref={end} />
+        </div>
+      )}
     </div>
   );
 }
 
-// ---------------------------------------------------------------- 명령 사전 탭
+// ---------------------------------------------------------------- 도움말 탭
 
 function HelpTab() {
   const stageId = useStore(gameStore, (s) => s.stageId);
@@ -362,14 +433,14 @@ room()                    # 함수 부르기`}</pre>
           <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> 실행</li>
           <li><kbd>Space</kbd> 재생 멈춤/계속 (에디터 밖에서)</li>
           <li><kbd>←</kbd><kbd>→</kbd> 재생 한 턴 뒤로/앞으로 (에디터 밖에서)</li>
-          <li><kbd>Tab</kbd> 마법서 접기/펴기 · <kbd>Esc</kbd> 에디터에서 빠져나오기</li>
+          <li><kbd>Tab</kbd> 코드 창 접기/펴기 (에디터 밖에서) · <kbd>Esc</kbd> 에디터에서 빠져나오기</li>
         </ul>
       </section>
 
       <section>
         <h3>처음이라면</h3>
         <button className="btn ghost small" onClick={() => replayTutorial('basic')}>
-          🧭 튜토리얼 다시 보기
+          튜토리얼 다시 보기
         </button>
       </section>
     </div>

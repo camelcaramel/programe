@@ -3,6 +3,7 @@ import * as monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
 import { MONSTER_KINDS } from '../sim';
 import { API_DOCS } from './apiDocs';
+import { COLOR, bare, withAlpha } from './tokens';
 
 (self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = {
   getWorker: () => new EditorWorker(),
@@ -12,32 +13,33 @@ monaco.editor.defineTheme('programe', {
   base: 'vs-dark',
   inherit: true,
   rules: [
-    { token: 'comment', foreground: '8d8aa6', fontStyle: 'italic' },
-    { token: 'keyword', foreground: 'ff8fb8' },
-    { token: 'string', foreground: '7ee2a0' },
-    { token: 'number', foreground: 'ffc533' },
+    // 처음 코드의 주석은 학생에게 안내문이므로 기울이지 않고 밝게
+    { token: 'comment', foreground: bare(COLOR.synComment) },
+    { token: 'keyword', foreground: bare(COLOR.synKeyword) },
+    { token: 'string', foreground: bare(COLOR.synString) },
+    { token: 'number', foreground: bare(COLOR.gold) },
   ],
   colors: {
-    'editor.background': '#2e2d3d',
-    'editor.foreground': '#ecebf7',
-    'editor.lineHighlightBackground': '#38374a',
+    'editor.background': COLOR.slate,
+    'editor.foreground': COLOR.slateText,
+    'editor.lineHighlightBackground': COLOR.slate2,
     'editor.lineHighlightBorder': '#00000000',
-    'editorLineNumber.foreground': '#6b6884',
-    'editorLineNumber.activeForeground': '#ffc533',
-    'editorGutter.background': '#2e2d3d',
-    'editor.selectionBackground': '#57538a',
-    'editorCursor.foreground': '#ffc533',
-    'editorIndentGuide.background1': '#3f3e52',
-    'editorWidget.background': '#38374a',
-    'editorWidget.border': '#1f1e2a',
-    'editorSuggestWidget.background': '#38374a',
-    'editorSuggestWidget.border': '#1f1e2a',
-    'editorSuggestWidget.selectedBackground': '#57538a',
-    'editorSuggestWidget.highlightForeground': '#ffc533',
-    'editorHoverWidget.background': '#38374a',
-    'editorHoverWidget.border': '#1f1e2a',
-    'scrollbarSlider.background': '#55546b88',
-    'scrollbarSlider.hoverBackground': '#55546bcc',
+    'editorLineNumber.foreground': COLOR.slateLine,
+    'editorLineNumber.activeForeground': COLOR.gold,
+    'editorGutter.background': COLOR.slate,
+    'editor.selectionBackground': COLOR.editorSelection,
+    'editorCursor.foreground': COLOR.gold,
+    'editorIndentGuide.background1': COLOR.editorIndent,
+    'editorWidget.background': COLOR.slate2,
+    'editorWidget.border': COLOR.editorBorder,
+    'editorSuggestWidget.background': COLOR.slate2,
+    'editorSuggestWidget.border': COLOR.editorBorder,
+    'editorSuggestWidget.selectedBackground': COLOR.editorSelection,
+    'editorSuggestWidget.highlightForeground': COLOR.gold,
+    'editorHoverWidget.background': COLOR.slate2,
+    'editorHoverWidget.border': COLOR.editorBorder,
+    'scrollbarSlider.background': withAlpha(COLOR.slateThumb, 0x88),
+    'scrollbarSlider.hoverBackground': withAlpha(COLOR.slateThumb, 0xcc),
   },
 });
 

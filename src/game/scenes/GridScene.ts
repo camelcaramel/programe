@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import { boardAt, initialBoard, type BoardState, type Level, type Pos, type SignValue, type TraceStep } from '../../sim';
 import { currentTrace, gameStore, uiStore } from '../../state/store';
 import { FONT, makeDotTexture } from '../systems/effects';
+import { COLOR, NO_TINT, hex } from '../../ui/tokens';
 
 const T = 16; // Tiny Dungeon 타일 크기
 
@@ -28,7 +29,7 @@ export const TILE = {
 const SFX = ['bump', 'coin', 'disappear', 'gem', 'hurt', 'jump-high', 'magic', 'select'] as const;
 type Sfx = (typeof SFX)[number];
 
-const SKILL_TINT = { fireball: 0xff8a3d, icebolt: 0x7fd8ff } as const;
+const SKILL_TINT = { fireball: hex(COLOR.fxFire), icebolt: hex(COLOR.fxIce) } as const;
 
 const keyOf = (p: Pos) => `${p.x},${p.y}`;
 const cx = (x: number) => x * T + T / 2;
@@ -68,7 +69,7 @@ export class GridScene extends Phaser.Scene {
     makeDotTexture(this);
     makeKeyTexture(this);
     makeLockTexture(this);
-    this.cameras.main.setBackgroundColor('#2a2236');
+    this.cameras.main.setBackgroundColor(COLOR.dungeon);
     this.cameras.main.setRoundPixels(true);
     this.terrainLayer = this.add.container(0, 0);
     this.objLayer = this.add.container(0, 0).setDepth(2);
@@ -295,9 +296,9 @@ export class GridScene extends Phaser.Scene {
   }
 
   private addQuestion(p: Pos) {
-    const bg = this.add.circle(cx(p.x), cy(p.y), 6, 0x353541, 0.85).setStrokeStyle(1, 0xffc533);
+    const bg = this.add.circle(cx(p.x), cy(p.y), 6, hex(COLOR.ink), 0.85).setStrokeStyle(1, hex(COLOR.gold));
     const t = this.add
-      .text(cx(p.x), cy(p.y) + 0.5, '?', { fontFamily: FONT, fontSize: '40px', color: '#ffe07a' })
+      .text(cx(p.x), cy(p.y) + 0.5, '?', { fontFamily: FONT, fontSize: '40px', color: COLOR.goldLight })
       .setOrigin(0.5)
       .setScale(0.25);
     this.objLayer.add([bg, t]);
@@ -316,8 +317,8 @@ export class GridScene extends Phaser.Scene {
     if (m.hp >= m.maxHp || m.hp <= 0) return;
     const g = this.add.graphics();
     const w = 12;
-    g.fillStyle(0x353541).fillRect(cx(m.x) - w / 2 - 1, m.y * T - 3, w + 2, 3);
-    g.fillStyle(0xe54341).fillRect(cx(m.x) - w / 2, m.y * T - 2, Math.round((w * m.hp) / m.maxHp), 1);
+    g.fillStyle(hex(COLOR.ink)).fillRect(cx(m.x) - w / 2 - 1, m.y * T - 3, w + 2, 3);
+    g.fillStyle(hex(COLOR.red)).fillRect(cx(m.x) - w / 2, m.y * T - 2, Math.round((w * m.hp) / m.maxHp), 1);
     this.objLayer.add(g);
     this.hpBars.set(id, g);
   }
@@ -353,8 +354,8 @@ export class GridScene extends Phaser.Scene {
           if (step.event === 'chest') {
             const c = this.things.get(`c:${tk}`) as Phaser.GameObjects.Sprite | undefined;
             c?.setFrame(TILE.chestOpen);
-            this.say(tx, ty - 8, '+1', '#ffe07a', 7);
-            this.spark(tx, ty, 0xffd34d, 10, 50);
+            this.say(tx, ty - 8, '+1', COLOR.goldLight, 7);
+            this.spark(tx, ty, hex(COLOR.fxSpark), 10, 50);
             this.play('coin');
           } else if (step.event === 'key') {
             const k = this.things.get(`k:${tk}`);
@@ -362,7 +363,7 @@ export class GridScene extends Phaser.Scene {
             if (k) this.tweens.add({ targets: this.retire(k), y: ty - 10, alpha: 0, duration: d, onComplete: () => k.destroy() });
             this.play('gem');
           } else if (step.event === 'exit') {
-            this.spark(tx, ty, 0xffd34d, 24, 70);
+            this.spark(tx, ty, hex(COLOR.fxSpark), 24, 70);
             this.tweens.add({ targets: p, y: ty - 6, duration: 160, yoyo: true, repeat: 1, ease: 'Quad.easeOut' });
             this.play('jump-high');
           }
@@ -371,15 +372,15 @@ export class GridScene extends Phaser.Scene {
       }
       case 'bump':
         this.nudge(p, tx, ty, d);
-        this.say((p.x + tx) / 2, (p.y + ty) / 2 - 4, '쿵', '#d9d4ef', 6);
+        this.say((p.x + tx) / 2, (p.y + ty) / 2 - 4, '쿵', COLOR.fxBump, 6);
         this.play('bump');
         this.cameras.main.shake(90, 0.004);
         break;
       case 'hit':
         this.nudge(p, tx, ty, d);
-        p.setTint(0xff6b6b);
+        p.setTint(hex(COLOR.fxHurt));
         this.time.delayedCall(d, () => p.clearTint());
-        this.say(cx(prev.pos.x), cy(prev.pos.y) - 8, `-${step.amount ?? 1}`, '#ff8f8f', 7);
+        this.say(cx(prev.pos.x), cy(prev.pos.y) - 8, `-${step.amount ?? 1}`, COLOR.fxDamage, 7);
         this.play('hurt');
         this.cameras.main.shake(140, 0.008);
         if (step.hp <= 0) this.tweens.add({ targets: p, angle: 90, alpha: 0.45, delay: d, duration: 300 });
@@ -427,7 +428,7 @@ export class GridScene extends Phaser.Scene {
   }
 
   private cast(step: TraceStep, d: number, tx: number, ty: number, tk: string) {
-    const tint = step.skill ? SKILL_TINT[step.skill] : 0xffffff;
+    const tint = step.skill ? SKILL_TINT[step.skill] : NO_TINT;
     const ball = this.add.image(this.player.x, this.player.y, 'dot').setTint(tint).setScale(0.45).setBlendMode(Phaser.BlendModes.ADD);
     this.fxLayer.add(ball);
     this.play('magic');
@@ -443,7 +444,7 @@ export class GridScene extends Phaser.Scene {
         const mon = this.things.get(`m:${tk}`);
         if (step.event === 'miss') return;
         if (step.event === 'kill') {
-          this.say(tx, ty - 8, `-${step.amount}`, '#ffe07a', 7);
+          this.say(tx, ty - 8, `-${step.amount}`, COLOR.goldLight, 7);
           this.things.delete(`m:${tk}`);
           this.hpBars.get(tk)?.destroy();
           this.hpBars.delete(tk);
@@ -456,12 +457,12 @@ export class GridScene extends Phaser.Scene {
         }
         // damage
         if ((step.amount ?? 0) > 0) {
-          this.say(tx, ty - 8, `-${step.amount}`, '#ffe07a', 7);
+          this.say(tx, ty - 8, `-${step.amount}`, COLOR.goldLight, 7);
           const m = this.board?.monsters.find((m) => keyOf(m) === tk);
           if (m) this.drawHp(m);
           if (mon) this.tweens.add({ targets: mon, alpha: 0.3, duration: 70, yoyo: true, repeat: 1 });
         } else {
-          this.say(tx, ty - 8, '효과 없음', '#c9c4de', 6);
+          this.say(tx, ty - 8, '효과 없음', COLOR.fxNoeffect, 6);
         }
       },
     });
@@ -489,7 +490,7 @@ export class GridScene extends Phaser.Scene {
   private say(x: number, y: number, text: string, color: string, screenPx: number) {
     const z = this.cameras.main.zoom;
     const t = this.add
-      .text(x, y, text, { fontFamily: FONT, fontSize: '48px', color, stroke: '#353541', strokeThickness: 10 })
+      .text(x, y, text, { fontFamily: FONT, fontSize: '48px', color, stroke: COLOR.ink, strokeThickness: 10 })
       .setOrigin(0.5)
       .setScale((screenPx * 3.2) / 48 / z)
       .setDepth(50);
@@ -522,11 +523,13 @@ export class GridScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const w = this.scale.width;
     const h = this.scale.height;
-    const top = 96; // 위 HUD
-    const bottom = 96; // 아래 재생 막대
-    // 위·왼쪽 좌표 번호가 들어갈 자리(1칸씩)까지 함께 맞춘다
-    const zx = (w - 48) / ((this.level.width + 2) * T);
-    const zy = (h - top - bottom) / ((this.level.height + 2) * T);
+    const top = 62; // 위 HUD
+    // 맵 아래 도크(.dock) 자리. 도크는 재생 조작·결과가 나오면 커지는데, 그때 맵이 움직이거나
+    // 가려지지 않도록 가장 클 때의 높이만큼을 늘 비워 둔다
+    const bottom = 184;
+    // 위·왼쪽 좌표 번호가 들어갈 자리(1칸)와 약간의 여백까지 함께 맞춘다
+    const zx = (w - 32) / ((this.level.width + 1.5) * T);
+    const zy = (h - top - bottom) / ((this.level.height + 1.25) * T);
     const z = Math.max(1, Math.min(7, Math.floor(Math.min(zx, zy))));
     const zoomChanged = cam.zoom !== z;
     cam.setZoom(z);
@@ -548,19 +551,19 @@ export class GridScene extends Phaser.Scene {
 
     // 1px 선은 픽셀 확대에서 군데군데 사라지므로, 바닥 칸을 체스판처럼 번갈아 살짝 어둡게 칠한다
     const g = this.add.graphics();
-    g.fillStyle(0x2a2236, 0.13);
+    g.fillStyle(hex(COLOR.dungeon), 0.13);
     for (let y = 0; y < height; y++)
       for (let x = 0; x < width; x++) if (terrain[y][x] !== 'wall' && (x + y) % 2 === 0) g.fillRect(x * T, y * T, T, T);
     this.guideLayer.add(g);
 
     const label = (x: number, y: number, text: string) =>
       this.add
-        .text(x, y, text, { fontFamily: FONT, fontSize: '48px', color: '#cfc8e6', stroke: '#2a2236', strokeThickness: 8 })
+        .text(x, y, text, { fontFamily: FONT, fontSize: '48px', color: COLOR.lavender, stroke: COLOR.dungeon, strokeThickness: 8 })
         .setOrigin(0.5)
-        .setScale(14 / 48 / z);
+        .setScale(16 / 48 / z);
     for (let x = 0; x < width; x++) this.guideLayer.add(label(cx(x), -T / 2, String(x)));
     for (let y = 0; y < height; y++) this.guideLayer.add(label(-T / 2, cy(y), String(y)));
-    this.guideLayer.add(label(-T / 2, -T / 2, 'y\\x').setColor('#8d8aa6'));
+    this.guideLayer.add(label(-T / 2, -T / 2, 'y\\x').setColor(COLOR.dusk));
   }
 }
 
@@ -648,7 +651,7 @@ function makeKeyTexture(scene: Phaser.Scene) {
   px.forEach((row, y) =>
     [...row].forEach((c, x) => {
       if (c === '.') return;
-      g.fillStyle(c === '#' ? 0x353541 : 0xffc533).fillRect(x, y + 2, 1, 1);
+      g.fillStyle(c === '#' ? hex(COLOR.ink) : hex(COLOR.gold)).fillRect(x, y + 2, 1, 1);
     }),
   );
   g.generateTexture('key', T, T);

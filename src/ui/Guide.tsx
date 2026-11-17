@@ -93,7 +93,7 @@ const TUTORIALS: Record<TutorialId, TutStep[]> = {
     },
     {
       target: '.editor-wrap',
-      title: '마법서',
+      title: '코드 창',
       text: (
         <>
           여기에 <b>파이썬 코드</b>를 써요. 마법사는 오직 내 코드대로만 움직여요.
@@ -115,20 +115,20 @@ const TUTORIALS: Record<TutorialId, TutStep[]> = {
       advanceWhen: () => phase() !== 'plan',
     },
     {
-      target: '.bottom-bar.controls',
+      target: '.dock',
       title: '재생 막대',
       text: (
         <>
           <b>▶/⏸</b> 재생·멈춤, <b>◀ ▶▏</b> 한 턴씩, <b>1× 2× 4×</b> 속도예요.
           <br />
-          지금 실행 중인 줄은 마법서에서 <b className="hl-yellow">노랗게</b> 빛나요.
+          지금 실행 중인 줄은 코드 창에서 <b className="hl-yellow">노랗게</b> 빛나요.
         </>
       ),
-      waitText: '주문을 외우는 중… 잠시만요!',
+      waitText: '코드를 실행하는 중… 잠시만요!',
     },
     {
-      target: '.result-card',
-      title: '결과 카드',
+      target: '.result',
+      title: '결과',
       text: (
         <>
           실패하면 <b>이유</b>와 <b>몇 번째 줄</b>인지 알려 줘요. 고쳐서 다시 실행!
@@ -136,7 +136,7 @@ const TUTORIALS: Record<TutorialId, TutStep[]> = {
           성공하면 <b>별 3개 조건</b>(맵 통과 · 보물상자 · 줄 수)을 몇 개 채웠는지 보여 줘요.
         </>
       ),
-      waitText: '재생이 끝나면 결과 카드가 나와요…',
+      waitText: '재생이 끝나면 맵 아래에 결과가 나와요…',
     },
   ],
   random: [
@@ -152,7 +152,7 @@ const TUTORIALS: Record<TutorialId, TutStep[]> = {
       ),
     },
     {
-      target: '.bottom-bar.plan .plan-note',
+      target: '.dock .plan-note',
       title: '맵 여러 개',
       text: (
         <>
