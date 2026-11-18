@@ -4,9 +4,10 @@
 // 3부의 조수 로봇: 마법사가 1턴을 쓴 뒤 파이썬이 roundBegin() → 조수마다 act() (botMove·botCast …) → roundEnd() 를 부른다.
 // 조수들이 한 일은 그 턴의 마법사 기록(TraceStep.bots)에 붙여서, 화면에서는 함께 움직인다.
 import { SimInputError, SimStop } from './errors';
-import { MONSTER_RULES, SKILLS, SKILL_ELEMENT, WEAK_DAMAGE, barsShouldOpen, defaultWeak } from './rules';
+import { COINS, MONSTER_RULES, PEG_NAMES, SKILLS, SKILL_ELEMENT, WEAK_DAMAGE, barsOpenFor, defaultWeak } from './rules';
 import {
   DIRS,
+  type AlgoCounts,
   type BotStep,
   type Dir,
   type EndReason,
@@ -43,7 +44,7 @@ const keyOf = (p: Pos) => `${p.x},${p.y}`;
 const same = (a: Pos, b: Pos) => a.x === b.x && a.y === b.y;
 
 /** 지나갈 수 없는 지형 (문은 열쇠가 있으면 열림, 창살은 열려 있을 때만) */
-const SOLID: ReadonlySet<Terrain> = new Set(['wall', 'sign', 'tablet', 'gate']);
+const SOLID: ReadonlySet<Terrain> = new Set(['wall', 'sign', 'tablet', 'gate', 'vault', 'statue', 'pillar', 'toll']);
 
 /** 재생 기록이 너무 길어지지 않도록 read·scan 기록은 이만큼만 남긴다 (값은 계속 돌려줌) */
 const MAX_READ_TRACE = 300;
@@ -59,6 +60,10 @@ const LOOK_KO: Partial<Record<LookResult, string>> = {
   bars: '창살',
   bot: '조수 로봇',
   wizard: '마법사',
+  vault: '금고',
+  statue: '석상',
+  pillar: '기둥',
+  toll: '요금 문',
 };
 
 interface MonsterState {
@@ -100,6 +105,13 @@ export class World {
   private readonly barsOpen = new Set<string>();
   private reads = 0;
   private scans = 0;
+  /** 4부: 금고 숫자·석상 무게 (번호 순서, swap 하면 바뀜) */
+  private readonly rowValues: number[];
+  /** 4부: 기둥별 원판 (아래→위, 1 = 가장 작음) */
+  private readonly pegs: number[][];
+  /** 4부: 요금 문 "x,y" → 통행료·낸 돈 */
+  private readonly tolls = new Map<string, { fee: number; paid: number }>();
+  readonly counts: AlgoCounts = { peek: 0, weigh: 0, swap: 0 };
   private inRound = false;
   private roundSteps: BotStep[] = [];
   private readonly getLine: () => number | null;
@@ -120,6 +132,9 @@ export class World {
     for (const s of level.signs) this.signs.set(keyOf(s), s.value);
     for (const g of level.gates) this.gates.set(keyOf(g), g.code);
     this.bots = (level.bots ?? []).map((b, id) => ({ id, pos: { ...b }, broken: false, acted: false }));
+    this.rowValues = [...(level.row?.values ?? [])];
+    this.pegs = level.pillars ? [Array.from({ length: level.discs ?? 0 }, (_, i) => (level.discs ?? 0) - i), [], []] : [];
+    for (const t of level.tolls ?? []) this.tolls.set(keyOf(t), { fee: t.fee, paid: 0 });
     this.terrain.forEach((row, y) =>
       row.forEach((t, x) => {
         if (t === 'plate') this.plates.push({ x, y });
@@ -295,6 +310,113 @@ export class World {
     return { ...this.pos };
   }
 
+  // ───────── 알고리즘 (4부) ─────────
+
+  /** 금고·석상 개수, 없으면 하노이 원판 수 */
+  size(): number {
+    if (this.ended) throw new SimStop(this.ended);
+    if (this.level.row) return this.rowValues.length;
+    if (this.level.pillars) return this.level.discs ?? 0;
+    throw new SimInputError('size() 는 금고·석상·하노이 원판이 있는 맵에서만 쓸 수 있어요.');
+  }
+
+  /** i 번 금고 속 숫자 (턴을 쓰지 않음). peekLimit 이 있으면 부를 때마다 1번씩 쓴다 */
+  peek(i: unknown): number {
+    if (this.ended) throw new SimStop(this.ended);
+    const row = this.level.row;
+    if (row?.kind !== 'vault') throw new SimInputError('peek() 는 금고가 있는 맵에서만 쓸 수 있어요.');
+    const idx = this.checkIndex(i, '금고');
+    const limit = this.level.peekLimit;
+    if (limit !== undefined && this.counts.peek >= limit)
+      throw new SimInputError(
+        `들여다보기 힘을 다 썼어요! 이 맵에서 peek() 은 ${limit}번만 쓸 수 있어요. 찾으면 바로 멈추고(break), 정렬된 금고라면 가운데를 보고 절반씩 버려 보세요.`,
+      );
+    this.counts.peek++;
+    const num = this.rowValues[idx];
+    this.pushAlgo(limit, { ...this.snapshot('peek', 'down', 'peek', row.cells[idx], true), index: idx, num });
+    return num;
+  }
+
+  /** 저울: i 번 석상이 j 번보다 무거운가 (턴을 쓰지 않음). 같은 번호끼리는 저울을 쓰지 않고 False */
+  heavier(i: unknown, j: unknown): boolean {
+    if (this.ended) throw new SimStop(this.ended);
+    const row = this.statueRow('heavier');
+    const a = this.checkIndex(i, '석상');
+    const b = this.checkIndex(j, '석상');
+    if (a === b) return false;
+    const limit = this.level.weighLimit;
+    if (limit !== undefined && this.counts.weigh >= limit)
+      throw new SimInputError(
+        `저울을 ${limit}번 다 썼어요! 이 맵에서 heavier() 는 ${limit}번만 쓸 수 있어요. 이미 비교한 것을 또 재고 있지 않은지 살펴보세요.`,
+      );
+    this.counts.weigh++;
+    const result = this.rowValues[a] > this.rowValues[b];
+    this.pushAlgo(limit, { ...this.snapshot('weigh', 'down', 'weigh', row.cells[a], true), pair: [a, b], heavier: result });
+    return result;
+  }
+
+  /** 두 석상의 자리 바꾸기 (1턴) */
+  swap(i: unknown, j: unknown): void {
+    if (this.ended) throw new SimStop(this.ended);
+    const row = this.statueRow('swap');
+    const a = this.checkIndex(i, '석상');
+    const b = this.checkIndex(j, '석상');
+    if (this.level.adjacentOnly && Math.abs(a - b) !== 1)
+      throw new SimInputError(`이 방에서는 이웃한 석상끼리만 바꿀 수 있어요: swap(i, i + 1). 받은 값: swap(${a}, ${b})`);
+    const limit = this.level.swapLimit;
+    if (limit !== undefined && this.counts.swap >= limit)
+      throw new SimInputError(
+        `석상이 너무 무거워서 ${limit}번까지만 바꿀 수 있어요! 한 자리마다 딱 한 번만 바꾸는 방법(남은 것 중 가장 가벼운 것을 찾아 앞으로)을 생각해 보세요.`,
+      );
+    this.beginTurn();
+    this.counts.swap++;
+    [this.rowValues[a], this.rowValues[b]] = [this.rowValues[b], this.rowValues[a]];
+    this.trace.push({ ...this.snapshot('swap', 'down', 'swap', row.cells[a], true), pair: [a, b] });
+  }
+
+  /** 하노이: 기둥 a 맨 위 원판을 기둥 b 로 (1턴). 큰 원판을 작은 원판 위에 놓으면 오류 */
+  moveDisc(a: unknown, b: unknown): void {
+    if (this.ended) throw new SimStop(this.ended);
+    const pillars = this.level.pillars;
+    if (!pillars) throw new SimInputError('move_disc() 는 하노이 기둥이 있는 맵에서만 쓸 수 있어요.');
+    const from = this.checkPeg(a);
+    const to = this.checkPeg(b);
+    if (from === to) throw new SimInputError(`같은 기둥으로는 옮길 수 없어요: move_disc(${show(a)}, ${show(b)})`);
+    const src = this.pegs[from];
+    const dst = this.pegs[to];
+    if (src.length === 0) throw new SimInputError(`${PEG_NAMES[from]} 기둥에는 원판이 없어요.`);
+    const disc = src[src.length - 1];
+    if (dst.length > 0 && dst[dst.length - 1] < disc)
+      throw new SimInputError(
+        `큰 원판(${disc})을 작은 원판(${dst[dst.length - 1]}) 위에 놓을 수 없어요: ${PEG_NAMES[from]} → ${PEG_NAMES[to]}`,
+      );
+    this.beginTurn();
+    dst.push(src.pop()!);
+    this.trace.push({ ...this.snapshot('disc', 'down', 'disc', pillars[to], true), from, to, size: disc });
+  }
+
+  /** 옆 칸 요금 문에 동전 하나 (1턴). 딱 맞으면 열리고, 넘치면 경보로 쓰러진다 */
+  pay(coin: unknown): void {
+    if (this.ended) throw new SimStop(this.ended);
+    if (typeof coin !== 'number' || !(COINS as readonly number[]).includes(coin))
+      throw new SimInputError(`동전은 ${COINS.join(', ')} 원짜리만 있어요. 받은 값: ${show(coin)}`);
+    const d = DIRS.find((d) => this.terrainAt(this.step(d)) === 'toll');
+    if (!d) throw new SimInputError('pay() 는 요금 문 바로 옆에서만 쓸 수 있어요.');
+    const t = this.step(d);
+    const toll = this.tolls.get(keyOf(t))!;
+    this.beginTurn();
+    toll.paid += coin;
+    const base = { coin, paid: toll.paid, fee: toll.fee };
+    if (toll.paid > toll.fee) {
+      this.hp = 0;
+      this.trace.push({ ...this.snapshot('pay', d, 'pay_over', t, false), ...base });
+      this.end('dead');
+    }
+    const opened = toll.paid === toll.fee;
+    if (opened) this.terrain[t.y][t.x] = 'floor';
+    this.trace.push({ ...this.snapshot('pay', d, 'pay', t, true), ...base, opened });
+  }
+
   // ───────── 조수 로봇 (3부) ─────────
 
   /** 마법사가 1턴을 쓴 뒤, 조수들의 act() 를 부르기 전에 */
@@ -396,6 +518,7 @@ export class World {
       coins: this.coins,
       chestsTotal: this.level.chests.length,
       trace: this.trace,
+      ...(this.level.row ? { counts: { ...this.counts } } : {}),
     };
   }
 
@@ -468,16 +591,49 @@ export class World {
 
   private updateBars() {
     if (this.barsCells.length === 0) return;
-    const open = barsShouldOpen(
-      this.plates,
-      this.bots.map((b) => b.pos),
-      this.monsters.size,
-    );
+    const open = barsOpenFor(this.level.barsRule, {
+      plates: this.plates,
+      bots: this.bots.map((b) => b.pos),
+      monstersLeft: this.monsters.size,
+      chestsLeft: this.chests.size,
+      values: this.rowValues,
+      pegs: this.pegs,
+      discs: this.level.discs,
+    });
     for (const c of this.barsCells) {
       const k = keyOf(c);
       if (open) this.barsOpen.add(k);
       else if (!same(c, this.pos) && !this.botAt(c)) this.barsOpen.delete(k);
     }
+  }
+
+  /** 4부 번호 확인: 0 이상 개수 미만의 정수 */
+  private checkIndex(i: unknown, what: string): number {
+    const n = this.rowValues.length;
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= n)
+      throw new SimInputError(`${what} 번호는 0 부터 ${n - 1} 까지예요 (${what} ${n}개, 번호는 0부터 세요). 받은 값: ${show(i)}`);
+    return i;
+  }
+
+  private checkPeg(p: unknown): number {
+    const i = typeof p === 'string' ? (PEG_NAMES as readonly string[]).indexOf(p) : -1;
+    if (i < 0) throw new SimInputError(`기둥 이름은 "A", "B", "C" 중 하나예요. 받은 값: ${show(p)}`);
+    return i;
+  }
+
+  private statueRow(cmd: string) {
+    const row = this.level.row;
+    if (row?.kind !== 'statue') throw new SimInputError(`${cmd}() 는 석상이 있는 맵에서만 쓸 수 있어요.`);
+    return row;
+  }
+
+  /** 0턴 기록(peek·weigh). 횟수 제한이 없으면 재생 기록이 너무 길어지지 않게 줄인다 */
+  private pushAlgo(limit: number | undefined, step: TraceStep) {
+    if (limit === undefined) {
+      if (this.reads >= MAX_READ_TRACE) return;
+      this.reads++;
+    }
+    this.trace.push(step);
   }
 
   private botById(id: unknown): BotState {

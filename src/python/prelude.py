@@ -29,6 +29,7 @@ STAGE_API_NAMES = (
     "look", "cast", "get_hp", "get_pos", "get_coins", "get_keys", "print",
     "read", "open_gate", "move",
     "scan", "wait", "get_bots", "hire", "get_map",
+    "size", "peek", "heavier", "swap", "move_disc", "pay",
 )
 
 
@@ -93,6 +94,9 @@ def _friendly(e):
         return f"괄호 안에 넣는 값의 개수가 맞지 않아요: {msg}"
     if isinstance(e, TypeError):
         return f"값의 종류가 맞지 않아요: {msg}"
+    if isinstance(e, RecursionError):
+        return ("함수가 자기 자신을 끝없이 부르고 있어요. 멈추는 조건(예: if n == 0: return)이 있는지, "
+                "부를 때마다 문제가 작아지는지(n - 1) 확인해 보세요.")
     if isinstance(e, (ValueError, RuntimeError)):
         return msg
     return f"{type(e).__name__}: {msg}"
@@ -298,6 +302,35 @@ def _run_stage(code_str, api, limits_json):
         _check(api.open_gate(direction, kind, value, shown, _student_line()))
         _after_turn()
 
+    # 4부: 금고·석상은 번호(0부터)로 부른다
+    def _index(i, cmd):
+        if isinstance(i, bool) or not isinstance(i, int):
+            raise ValueError(f"{cmd}() 에는 번호(정수)를 넣어요. 받은 값: {i!r}")
+        return i
+
+    def size():
+        return int(json.loads(_check(api.size(_student_line()))[4:]))
+
+    def peek(i):
+        return int(json.loads(_check(api.peek(_index(i, "peek"), _student_line()))[4:]))
+
+    def heavier(i, j):
+        return bool(json.loads(_check(api.heavier(_index(i, "heavier"), _index(j, "heavier"), _student_line()))[4:]))
+
+    def swap(i, j):
+        _check(api.swap(_index(i, "swap"), _index(j, "swap"), _student_line()))
+        _after_turn()
+
+    def move_disc(a, b):
+        _check(api.move_disc(a, b, _student_line()))
+        _after_turn()
+
+    def pay(coin):
+        if isinstance(coin, bool) or not isinstance(coin, int):
+            raise ValueError(f"pay() 에는 동전 금액(정수 500, 100, 50, 10)을 넣어요. 받은 값: {coin!r}")
+        _check(api.pay(coin, _student_line()))
+        _after_turn()
+
     def get_hp():
         return int(api.hp())
 
@@ -316,6 +349,7 @@ def _run_stage(code_str, api, limits_json):
         "get_coins": get_coins, "get_keys": get_keys, "print": _print,
         "move": move, "read": read, "open_gate": open_gate,
         "scan": scan, "wait": wait, "get_bots": get_bots, "hire": hire, "get_map": get_map,
+        "size": size, "peek": peek, "heavier": heavier, "swap": swap, "move_disc": move_disc, "pay": pay,
     }
     allowed = limits.get("api") or list(STAGE_API_NAMES)
     safe = dict(_SAFE)

@@ -1,6 +1,6 @@
 // 실행 기록(trace)의 n 번째까지 적용한 맵 상태를 계산한다. 렌더러가 되감기·건너뛰기할 때 쓴다.
-import { MONSTER_RULES, barsShouldOpen } from './rules';
-import type { BotStep, Level, MonsterKind, Pos, TraceStep } from './types';
+import { MONSTER_RULES, barsOpenFor } from './rules';
+import type { AlgoCounts, BotStep, ItemRow, Level, MonsterKind, Pos, TraceStep } from './types';
 
 export interface BoardState {
   pos: Pos;
@@ -25,6 +25,14 @@ export interface BoardState {
   bars: { x: number; y: number; open: boolean }[];
   /** 발판 (3부). pressed: 조수가 올라서 있음 */
   plates: { x: number; y: number; pressed: boolean }[];
+  /** 금고·석상 줄 (4부). values 는 지금 번호 순서의 값, peeked 는 들여다본 금고 */
+  row: (ItemRow & { peeked: boolean[] }) | null;
+  /** 하노이 기둥별 원판 (4부, 아래→위) */
+  pegs: number[][];
+  /** 요금 문 (4부) */
+  tolls: { x: number; y: number; fee: number; paid: number; open: boolean }[];
+  /** 지금까지 쓴 들여다보기·저울·바꾸기 */
+  counts: AlgoCounts;
 }
 
 const same = (a: Pos, b: Pos) => a.x === b.x && a.y === b.y;
@@ -41,7 +49,17 @@ export function initialBoard(level: Level): BoardState {
     }),
   );
   const bots = (level.bots ?? []).map((b, id) => ({ id, x: b.x, y: b.y, facing: 'right' as const, broken: false }));
-  const barsOpen = barsShouldOpen(plates, bots, level.monsters.length);
+  const discs = level.discs ?? 0;
+  const pegs = level.pillars ? [Array.from({ length: discs }, (_, i) => discs - i), [], []] : [];
+  const barsOpen = barsOpenFor(level.barsRule, {
+    plates,
+    bots,
+    monstersLeft: level.monsters.length,
+    chestsLeft: level.chests.length,
+    values: level.row?.values,
+    pegs,
+    discs,
+  });
   const state: BoardState = {
     pos: { ...level.start },
     facing: 'right',
@@ -61,6 +79,12 @@ export function initialBoard(level: Level): BoardState {
     bots,
     bars: barsCells.map((c) => ({ ...c, open: barsOpen })),
     plates: [],
+    row: level.row
+      ? { kind: level.row.kind, cells: level.row.cells, values: [...level.row.values], peeked: level.row.values.map(() => false) }
+      : null,
+    pegs,
+    tolls: (level.tolls ?? []).map((t) => ({ ...t, paid: 0, open: false })),
+    counts: { peek: 0, weigh: 0, swap: 0 },
   };
   pressPlates(state, plates);
   return state;
@@ -128,6 +152,42 @@ export function applyStep(state: BoardState, step: TraceStep): void {
     case 'kill':
       hurtMonster(state, t, step.event, step.amount);
       break;
+    case 'peek':
+      state.counts = { ...state.counts, peek: state.counts.peek + 1 };
+      if (state.row && step.index !== undefined) {
+        const peeked = [...state.row.peeked];
+        peeked[step.index] = true;
+        state.row = { ...state.row, peeked };
+      }
+      break;
+    case 'weigh':
+      state.counts = { ...state.counts, weigh: state.counts.weigh + 1 };
+      break;
+    case 'swap':
+      state.counts = { ...state.counts, swap: state.counts.swap + 1 };
+      if (state.row && step.pair) {
+        const [a, b] = step.pair;
+        const values = [...state.row.values];
+        [values[a], values[b]] = [values[b], values[a]];
+        state.row = { ...state.row, values };
+      }
+      break;
+    case 'disc':
+      if (step.from !== undefined && step.to !== undefined) {
+        state.pegs = state.pegs.map((p) => [...p]);
+        const d = state.pegs[step.from].pop();
+        if (d !== undefined) state.pegs[step.to].push(d);
+      }
+      break;
+    case 'pay':
+    case 'pay_over': {
+      const toll = state.tolls.find((x) => same(x, t));
+      if (toll) {
+        toll.paid = step.paid ?? toll.paid;
+        toll.open = !!step.opened;
+      }
+      break;
+    }
   }
   if (step.action !== 'wait' && step.by === undefined && (step.dir === 'left' || step.dir === 'right')) state.facing = step.dir;
   state.pos = { ...step.pos };

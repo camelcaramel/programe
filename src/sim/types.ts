@@ -11,9 +11,36 @@ export type Element = 'fire' | 'ice' | 'thunder';
 
 /**
  * 움직이지 않는 지형. sign(표지판)·tablet(석판)·gate(비밀 문)은 2부,
- * plate(발판)·bars(창살)은 3부에서 쓴다
+ * plate(발판)·bars(창살)은 3부, vault(금고)·statue(석상)·pillar(하노이 기둥)·toll(요금 문)은 4부에서 쓴다
  */
-export type Terrain = 'floor' | 'wall' | 'exit' | 'door' | 'sign' | 'tablet' | 'gate' | 'plate' | 'bars';
+export type Terrain =
+  | 'floor'
+  | 'wall'
+  | 'exit'
+  | 'door'
+  | 'sign'
+  | 'tablet'
+  | 'gate'
+  | 'plate'
+  | 'bars'
+  | 'vault'
+  | 'statue'
+  | 'pillar'
+  | 'toll';
+
+/**
+ * 창살이 열리는 조건 (3부는 plates, 4부는 스테이지마다):
+ * plates = 모든 발판에 조수 + 몬스터 없음, sorted = 석상이 가벼운→무거운 순서,
+ * hanoi = 원판이 모두 C 기둥, chests = 보물상자를 모두 엶
+ */
+export type BarsRule = 'plates' | 'sorted' | 'hanoi' | 'chests';
+
+/** 4부 금고·석상 줄: 번호(0부터, 위→아래·왼→오른) 순서의 칸과 값 (금고 = 숫자, 석상 = 무게) */
+export interface ItemRow {
+  kind: 'vault' | 'statue';
+  cells: Pos[];
+  values: number[];
+}
 
 /** 표지판(문자열)·석판(리스트)에 적힌 값 */
 export type SignValue = string | (string | number)[];
@@ -38,6 +65,10 @@ export type LookResult =
   | 'gate'
   | 'bars'
   | 'bot'
+  | 'vault'
+  | 'statue'
+  | 'pillar'
+  | 'toll'
   /** 조수 로봇의 look() 에만: 옆 칸의 마법사 */
   | 'wizard'
   | Exclude<MonsterKind, 'mimic'>;
@@ -68,6 +99,10 @@ export interface ContentSlots {
   gates: Pos[];
   /** 몬스터 (3부: 변이 정보를 정해 줄 수 있다) */
   monsters: { x: number; y: number; kind: MonsterKind }[];
+  /** 4부: 금고(V)·석상(W) 칸 (번호 순서) */
+  items: Pos[];
+  /** 4부: 요금 문($) 칸 */
+  tolls: Pos[];
 }
 
 /** content() 가 돌려주는 값: 위치 순서대로 표지판 글자, 석판 리스트, 문 암호 */
@@ -79,6 +114,16 @@ export interface StageContent {
   monsters?: (MonsterMutation | null)[];
   /** 턴 제한을 내용(몬스터 HP 등)을 보고 다시 정할 때 */
   maxTurns?: number;
+  /** 4부: 금고 속 숫자 또는 석상 무게 (번호 순서) */
+  row?: number[];
+  /** 4부: 하노이 원판 수 (기둥 H 가 있으면 꼭) */
+  discs?: number;
+  /** 4부: 요금 문마다 통행료 */
+  tolls?: number[];
+  /** 4부: peek()·heavier()·swap() 횟수 제한 (없으면 무제한) */
+  peekLimit?: number;
+  weighLimit?: number;
+  swapLimit?: number;
 }
 
 /** 스테이지 정의 (src/stages/*.ts 에서 작성) */
@@ -100,6 +145,10 @@ export interface StageDef {
   content?: (rng: Rng, slots: ContentSlots) => StageContent;
   /** scan() 을 쓸 수 있는 횟수 (없으면 무제한). 함수면 시드마다 만든 맵을 보고 정한다 */
   scanLimit?: number | ((rows: string[]) => number);
+  /** 4부: 이웃한 석상끼리만 바꿀 수 있다 (swap(i, i + 1)) */
+  adjacentOnly?: boolean;
+  /** 창살이 열리는 조건 (없으면 plates) */
+  barsRule?: BarsRule;
 }
 
 /** 시드가 정해진 뒤의 실제 맵 (직렬화 가능한 순수 데이터, 렌더러도 그대로 쓴다) */
@@ -127,6 +176,19 @@ export interface Level {
   bots: Pos[];
   /** scan() 사용 횟수 제한 (없으면 무제한) */
   scanLimit?: number;
+  /** 4부: 금고·석상 줄 */
+  row?: ItemRow;
+  peekLimit?: number;
+  weighLimit?: number;
+  swapLimit?: number;
+  adjacentOnly?: boolean;
+  /** 4부: 하노이 기둥 3개 (왼→오른 = A, B, C) 와 원판 수. 처음에는 모두 A 에 */
+  pillars?: Pos[];
+  discs?: number;
+  /** 4부: 요금 문과 통행료 */
+  tolls?: { x: number; y: number; fee: number }[];
+  /** 창살이 열리는 조건 (없으면 plates) */
+  barsRule?: BarsRule;
 }
 
 export type TraceEvent =
@@ -144,7 +206,13 @@ export type TraceEvent =
   | 'gate_open' // 맞는 암호로 비밀 문 열기 (제자리)
   | 'gate_wrong' // 틀린 암호: 경보, HP −1 (제자리)
   | 'scan' // 몬스터 살펴보기 (0턴, 재생 때 말풍선)
-  | 'wait'; // 한 턴 쉬기
+  | 'wait' // 한 턴 쉬기
+  | 'peek' // 금고 들여다보기 (0턴, 말풍선)
+  | 'weigh' // 저울로 석상 둘 비교 (0턴, 말풍선)
+  | 'swap' // 석상 둘 자리 바꾸기
+  | 'disc' // 하노이 원판 옮기기
+  | 'pay' // 통행료 동전 하나 (모자라면 그대로, 딱 맞으면 문이 열림)
+  | 'pay_over'; // 통행료보다 많이 냄: 경보, 쓰러짐
 
 /** 한 턴 동안 조수 로봇 하나가 한 일 */
 export interface BotStep {
@@ -164,7 +232,7 @@ export interface BotStep {
 
 export interface TraceStep {
   turn: number;
-  action: 'move' | 'cast' | 'read' | 'gate' | 'scan' | 'wait';
+  action: 'move' | 'cast' | 'read' | 'gate' | 'scan' | 'wait' | 'peek' | 'weigh' | 'swap' | 'disc' | 'pay';
   dir: Dir;
   skill?: Skill;
   event: TraceEvent;
@@ -196,6 +264,22 @@ export interface TraceStep {
   bots?: BotStep[];
   /** 이 턴이 끝난 뒤 열려 있는 창살 칸 ("x,y"). 창살이 있는 맵에서만 */
   barsOpen?: string[];
+  /** peek: 금고 번호 / weigh·swap: 두 석상 번호 */
+  index?: number;
+  pair?: [number, number];
+  /** peek: 금고 속 숫자 */
+  num?: number;
+  /** weigh: 앞의 석상(pair[0])이 더 무거운가 */
+  heavier?: boolean;
+  /** disc: 기둥 번호(0=A, 1=B, 2=C)와 원판 크기(1 = 가장 작음) */
+  from?: number;
+  to?: number;
+  size?: number;
+  /** pay: 낸 동전, 지금까지 낸 돈, 통행료, 문이 열렸는지 */
+  coin?: number;
+  paid?: number;
+  fee?: number;
+  opened?: boolean;
 }
 
 export type EndReason =
@@ -216,4 +300,12 @@ export interface RunSummary {
   coins: number;
   chestsTotal: number;
   trace: TraceStep[];
+  /** 4부: 들여다보기·저울·바꾸기를 쓴 횟수 (금고·석상이 있는 맵에서만) */
+  counts?: AlgoCounts;
+}
+
+export interface AlgoCounts {
+  peek: number;
+  weigh: number;
+  swap: number;
 }

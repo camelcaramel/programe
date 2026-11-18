@@ -362,3 +362,92 @@ move_right()
     expect(r.runs[0].error).toMatch(/키/);
   });
 });
+
+describe('4부: 알고리즘 명령', () => {
+  const p4 = (map: string[], content: Record<string, unknown>, extra: Partial<StageDef> = {}) =>
+    stage(map, { seeds: [1], content: () => content, ...extra });
+
+  it('size·peek 은 정수, 번호가 정수가 아니면 친절한 오류', () => {
+    const def = p4(['VVV', 'S.E'], { row: [7, 3, 9] });
+    const r = run('print(size(), peek(0), peek(2), type(peek(1)).__name__)\nmove_right()\nmove_right()\n', def);
+    expect(r.runs[0].error).toBeNull();
+    expect(r.runs[0].out).toEqual(['3 7 9 int']);
+    expect(r.ok).toBe(true);
+    expect(run('peek("0")\n', def).runs[0].error).toMatch(/번호\(정수\)/);
+    expect(run('peek(True)\n', def).runs[0].error).toMatch(/번호\(정수\)/);
+    expect(run('peek(3)\n', def).runs[0].error).toMatch(/0 부터 2 까지/);
+  });
+
+  it('heavier 는 True/False, swap 은 턴을 쓰고 창살이 열린다 (선택 정렬)', () => {
+    const def = p4(['WWW#', 'S=.E'], { row: [30, 10, 20] }, { barsRule: 'sorted' });
+    const code = strip(`
+n = size()
+for i in range(n - 1):
+    small = i
+    for j in range(i + 1, n):
+        if heavier(small, j):
+            small = j
+    if small != i:
+        swap(i, small)
+print(heavier(0, 1), heavier(2, 1))
+move_right()
+move_right()
+move_right()
+`);
+    const r = run(code, def);
+    expect(r.runs[0].error).toBeNull();
+    expect(r.runs[0].out).toEqual(['False True']);
+    expect(r.ok).toBe(true);
+    expect(r.runs[0].summary.counts).toEqual({ peek: 0, weigh: 5, swap: 2 });
+  });
+
+  it('횟수 제한·이웃 바꾸기 오류는 줄 번호와 함께', () => {
+    const def = p4(['WWW', 'S.E'], { row: [3, 1, 2], weighLimit: 1 }, { adjacentOnly: true });
+    const r = run('heavier(0, 1)\nheavier(1, 2)\n', def);
+    expect(r.runs[0].error).toMatch(/저울을 1번/);
+    expect(r.runs[0].line).toBe(2);
+    expect(run('swap(0, 2)\n', def).runs[0].error).toMatch(/이웃한/);
+  });
+
+  it('하노이: 재귀 함수로 옮기고, 끝없는 재귀는 친절한 오류', () => {
+    const def = p4(['#H.H.H#', '#S...=E'], { discs: 3 }, { barsRule: 'hanoi' });
+    const code = strip(`
+def hanoi(n, a, b, c):
+    if n == 0:
+        return
+    hanoi(n - 1, a, c, b)
+    move_disc(a, c)
+    hanoi(n - 1, b, a, c)
+
+hanoi(size(), "A", "B", "C")
+for i in range(5):
+    move_right()
+`);
+    const r = run(code, def);
+    expect(r.runs[0].error).toBeNull();
+    expect(r.ok).toBe(true);
+    expect(r.runs[0].summary.turns).toBe(7 + 5);
+    const bad = run('def f(n):\n    return f(n - 1)\nf(3)\n', def);
+    expect(bad.runs[0].error).toMatch(/자기 자신을 끝없이/);
+    expect(run('move_disc("A", "B")\nmove_disc("A", "B")\n', def).runs[0].error).toMatch(/큰 원판/);
+  });
+
+  it('pay: 탐욕으로 딱 맞게, 넘치면 쓰러짐, 동전이 정수가 아니면 오류', () => {
+    const def = p4(['S$E'], { tolls: [160] });
+    const greedy = strip(`
+fee = 160
+for coin in [500, 100, 50, 10]:
+    while fee >= coin:
+        pay(coin)
+        fee = fee - coin
+move_right()
+move_right()
+`);
+    const r = run(greedy, def);
+    expect(r.runs[0].error).toBeNull();
+    expect(r.ok).toBe(true);
+    expect(r.runs[0].summary.turns).toBe(3 + 2);
+    expect(run('pay(500)\n', def).runs[0].summary.reason).toBe('dead');
+    expect(run('pay("100")\n', def).runs[0].error).toMatch(/동전 금액/);
+  });
+});

@@ -77,6 +77,13 @@ export function runStageWith(runStage: PyRunStage, code: string, levels: Level[]
       bot_look: (id: number, dir: unknown, ln?: number | null) => guard(ln, () => world.botLook(id, dir)),
       bot_read: (id: number, dir: unknown, ln?: number | null) => guard(ln, () => 'VAL:' + JSON.stringify(world.botRead(id, dir))),
       bot_scan: (id: number, dir: unknown, ln?: number | null) => guard(ln, () => 'VAL:' + JSON.stringify(world.botScan(id, dir))),
+      // 4부: 금고·석상·하노이·통행료
+      size: (ln?: number | null) => guard(ln, () => 'VAL:' + JSON.stringify(world.size())),
+      peek: (i: unknown, ln?: number | null) => guard(ln, () => 'VAL:' + JSON.stringify(world.peek(i))),
+      heavier: (i: unknown, j: unknown, ln?: number | null) => guard(ln, () => 'VAL:' + JSON.stringify(world.heavier(i, j))),
+      swap: (i: unknown, j: unknown, ln?: number | null) => guard(ln, () => (world.swap(i, j), '')),
+      move_disc: (a: unknown, b: unknown, ln?: number | null) => guard(ln, () => (world.moveDisc(a, b), '')),
+      pay: (coin: unknown, ln?: number | null) => guard(ln, () => (world.pay(coin), '')),
       hp: () => world.hp,
       coins: () => world.coins,
       keys: () => world.keys,
