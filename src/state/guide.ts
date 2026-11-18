@@ -6,7 +6,7 @@ import { createStore, gameStore, uiStore } from './store';
 export type TutorialId = 'basic' | 'random';
 
 export interface GuideState {
-  /** 지금 띄운 "부 안내" 카드 (3부 처음 들어올 때) */
+  /** 지금 띄운 "부 안내" 카드 (3부·4부 처음 들어올 때) */
   intro: number | null;
   /** 지금 띄운 개념 카드의 스테이지 */
   concept: string | null;
@@ -61,7 +61,7 @@ function next() {
 export function onStageOpen(stageId: string) {
   queue = [];
   const stage = getStage(stageId);
-  if (stage.part === 3 && !seen.intros.includes(3)) queue.push({ kind: 'intro', part: 3 });
+  if ((stage.part === 3 || stage.part === 4) && !seen.intros.includes(stage.part)) queue.push({ kind: 'intro', part: stage.part });
   if (stage.concepts?.length && !seen.concepts.includes(stageId)) queue.push({ kind: 'concept', stageId });
   if (stageId === STAGES[0].id && !seen.tutorials.includes('basic')) queue.push({ kind: 'tutorial', id: 'basic' });
   if (stageId === 'stage-05' && !seen.tutorials.includes('random')) queue.push({ kind: 'tutorial', id: 'random' });

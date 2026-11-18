@@ -322,6 +322,22 @@ function HelpTab() {
               </li>
             </>
           )}
+          {stage.part === 4 && (
+            <>
+              <li>
+                <b>금고</b>·<b>석상</b>은 번호로 불러요(0부터, 위 줄부터 왼→오른). 금고 속 숫자는 <code>peek(i)</code>, 석상 무게는 저울 <code>heavier(i, j)</code> 로만 알 수 있어요.
+              </li>
+              <li>
+                들여다보기·저울·바꾸기에는 <b>횟수 제한</b>이 있어요(위쪽 표시). 넘으면 오류로 멈춰요.
+              </li>
+              <li>
+                <b>창살</b>은 방마다 조건이 달라요: 석상이 가벼운→무거운 순서가 되면(31~33), 원판이 모두 C 기둥에 가면(34), 보물상자를 모두 열면(36).
+              </li>
+              <li>
+                <b>요금 문</b>은 통행료를 딱 맞게 내면 열려요. 넘치게 내면 경보로 쓰러져요.
+              </li>
+            </>
+          )}
         </ul>
       </section>
 
@@ -440,7 +456,7 @@ function HelpTab() {
                 </td>
                 <td>문자열 → 정수. <code>str(42)</code> 는 정수 → 문자열. <code>type(x)</code> 로 자료형을 볼 수 있어요.</td>
               </tr>
-              {stage.part === 3 && (
+              {stage.part >= 3 && (
                 <>
                   <tr>
                     <td>
@@ -490,7 +506,7 @@ def room():               # 함수 만들기
     move_up()
     move_down()
 room()                    # 함수 부르기`}
-          {stage.part === 3 &&
+          {stage.part >= 3 &&
             `
 
 class Helper:             # 클래스 (객체의 틀)

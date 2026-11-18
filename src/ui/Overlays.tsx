@@ -87,6 +87,7 @@ const PARTS: { part: StageInfo['part']; title: string; sub: string }[] = [
   { part: 1, title: '1부 · 첫 주문들', sub: '순서 · for · if · while · 함수' },
   { part: 2, title: '2부 · 기억과 목록', sub: '변수 · 자료형 · 리스트 · return' },
   { part: 3, title: '3부 · 객체와 조수들', sub: '객체 · 딕셔너리 · 클래스 · 2차원 리스트 · 탐색' },
+  { part: 4, title: '4부 · 알고리즘의 탑', sub: '순차·이진 탐색 · 최댓값 · 선택·버블·삽입 정렬 · 도전: 재귀 · 탐욕 · DFS' },
 ];
 
 function StageSelect() {
@@ -145,9 +146,10 @@ function PartSection({
               className={`stage-card ${stars > 0 ? 'cleared' : ''} ${isNext ? 'next' : ''}`}
               onClick={() => openStage(s.id)}
               title={s.goal}
-              aria-label={`${i + 1}. ${s.title} (${s.concept}) 별 ${stars}개${isNext ? ', 다음 추천' : ''}`}
+              aria-label={`${i + 1}. ${s.title} (${s.concept})${s.challenge ? ', 도전' : ''} 별 ${stars}개${isNext ? ', 다음 추천' : ''}`}
             >
               {isNext && <span className="sc-next">다음 추천</span>}
+              {s.challenge && !isNext && <span className="sc-next sc-challenge">도전</span>}
               <span className="sc-num">{i + 1}</span>
               <span className="sc-title">{s.title}</span>
               <span className="sc-concept">{s.concept}</span>

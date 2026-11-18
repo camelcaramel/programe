@@ -1,6 +1,6 @@
 // 게임 화면 위·아래의 정보: 위쪽 상태(HP·상자·열쇠·턴), 맵 아래 도크(안내 → 재생 조작 → 결과)
 import { useEffect, useRef, type ReactNode } from 'react';
-import { initialBoard, boardAt } from '../sim';
+import { SORT_COST, SORT_LABEL, initialBoard, boardAt, type AlgoCounts, type SortName } from '../sim';
 import { currentTrace, gameStore, isTyping, uiStore, useStore, type Speed } from '../state/store';
 import {
   REASON_TEXT,
@@ -39,6 +39,9 @@ function useBoard() {
       maxTurns: level.maxTurns,
       hidden: !showRun && level.randomCells.length > 0,
       anyChests: s.levels.some((l) => l.chests.length > 0),
+      counts: level.row ? b.counts : null,
+      limits: { peek: level.peekLimit, weigh: level.weighLimit, swap: level.swapLimit },
+      rowKind: level.row?.kind ?? null,
     });
   });
 }
@@ -53,8 +56,21 @@ export function StageHud() {
   const b = JSON.parse(raw) as {
     hp: number; maxHp: number; coins: number; chests: number; keys: number; hasKeys: boolean; turn: number; maxTurns: number; hidden: boolean;
     anyChests: boolean;
+    counts: AlgoCounts | null;
+    limits: Partial<Record<keyof AlgoCounts, number>>;
+    rowKind: 'vault' | 'statue' | null;
   };
   const stage = getStage(stageId);
+  // 4부: 들여다보기·저울·바꾸기 (쓴 횟수 / 제한)
+  const algoPills: { key: keyof AlgoCounts; label: string; title: string }[] =
+    b.rowKind === 'vault'
+      ? [{ key: 'peek', label: '들여다보기', title: 'peek() 쓴 횟수 / 제한' }]
+      : b.rowKind === 'statue'
+        ? [
+            { key: 'weigh', label: '저울', title: 'heavier() 쓴 횟수 / 제한' },
+            { key: 'swap', label: '바꾸기', title: 'swap() 쓴 횟수 / 제한' },
+          ]
+        : [];
 
   return (
     <div className="hud">
@@ -99,6 +115,15 @@ export function StageHud() {
           {b.turn}
           <small>/{b.maxTurns}</small>
         </div>
+        {algoPills
+          .filter((p) => b.limits[p.key] !== undefined || p.key === 'swap')
+          .map((p) => (
+            <div key={p.key} className="pill" title={p.title}>
+              <small>{p.label}</small>
+              {b.counts?.[p.key] ?? 0}
+              {b.limits[p.key] !== undefined && <small>/{b.limits[p.key]}</small>}
+            </div>
+          ))}
         <button
           className={showGrid ? 'pill btn-pill on' : 'pill btn-pill'}
           aria-pressed={showGrid}
@@ -248,7 +273,51 @@ function gateTip(result: NonNullable<ReturnType<typeof gameStore.get>['result']>
   if (steps.some((t) => t.counter)) return '약점이 아닌 마법을 써서 반격을 받았어요! 몬스터의 약점은 맵마다 바뀌니 scan() 으로 m.weak 를 읽어 보세요.';
   if (steps.some((t) => t.bots?.some((b) => b.broken))) return '조수 로봇이 약점이 아닌 마법을 써서 고장 났어요. self.bot.scan(방향).weak 로 약점을 읽어 보세요.';
   if (steps.some((t) => t.event === 'hit' && t.amount === 3)) return '미믹에 물렸어요! look() 은 미믹도 "chest" 라고 해요. scan() 이 None 이 아니면 미믹이에요.';
+  // 4부
+  if (steps.some((t) => t.event === 'pay_over')) return '통행료보다 많이 냈어요(경보!). 큰 동전부터 내되, 남은 금액보다 큰 동전은 건너뛰어요.';
   return null;
+}
+
+/**
+ * 4부 정렬 방(31~33): 지금 보는 맵의 처음 석상 줄에 선택·버블·삽입 정렬을 돌렸다면 저울·바꾸기를 몇 번 썼을지,
+ * 내 코드가 쓴 횟수와 막대로 나란히 보여 준다 (효율 비교)
+ */
+function SortCompare() {
+  const raw = useStore(gameStore, (s) => {
+    const level = s.levels[s.view];
+    const run = s.result?.runs[s.view];
+    if (!level?.row || level.row.kind !== 'statue' || level.barsRule !== 'sorted' || !run?.summary.counts) return null;
+    return JSON.stringify({ values: level.row.values, mine: run.summary.counts, cleared: run.summary.cleared, map: s.view + 1, many: s.levels.length > 1 });
+  });
+  if (!raw) return null;
+  const { values, mine, cleared, map, many } = JSON.parse(raw) as { values: number[]; mine: AlgoCounts; cleared: boolean; map: number; many: boolean };
+  const rows: { label: string; c: AlgoCounts; me?: boolean }[] = [
+    { label: cleared ? '내 코드' : '내 코드 (멈춘 곳까지)', c: mine, me: true },
+    ...(['selection', 'bubble', 'insertion'] as SortName[]).map((n) => ({ label: SORT_LABEL[n], c: SORT_COST[n](values) })),
+  ];
+  const max = Math.max(1, ...rows.flatMap((r) => [r.c.weigh, r.c.swap]));
+  const bar = (v: number, kind: 'weigh' | 'swap') => (
+    <span className="cmp-cell">
+      <span className={`cmp-bar ${kind}`} style={{ width: `${(v / max) * 100}%` }} />
+      <b>{v}</b>
+    </span>
+  );
+  return (
+    <div className="sort-compare" aria-label="정렬 알고리즘 비교">
+      <div className="cmp-head">
+        <span>{many ? `맵 ${map} 석상 ${values.length}개` : `석상 ${values.length}개`}</span>
+        <span>저울</span>
+        <span>바꾸기</span>
+      </div>
+      {rows.map((r) => (
+        <div key={r.label} className={r.me ? 'cmp-row me' : 'cmp-row'}>
+          <span>{r.label}</span>
+          {bar(r.c.weigh, 'weigh')}
+          {bar(r.c.swap, 'swap')}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /** 결과의 대표 버튼. 에디터에 커서가 있을 땐 뺏지 않고, 아니면 Enter 로 바로 누를 수 있게 포커스를 준다 */
@@ -288,15 +357,18 @@ function Result() {
           <h2 className="result-title">클리어!</h2>
           {newRecord && <div className="record">새 기록!</div>}
         </div>
-        <ul className="checks">
-          {score.checks.map((c) => (
-            <li key={c.id} className={c.ok ? 'ok' : 'no'}>
-              <StarIcon on={c.ok} />
-              {c.label}
-              {c.id === 'lines' && c.label.startsWith('코드') && <small> (지금 {score.lines}줄)</small>}
-            </li>
-          ))}
-        </ul>
+        <div className="result-body">
+          <ul className="checks">
+            {score.checks.map((c) => (
+              <li key={c.id} className={c.ok ? 'ok' : 'no'}>
+                <StarIcon on={c.ok} />
+                {c.label}
+                {c.id === 'lines' && c.label.startsWith('코드') && <small> (지금 {score.lines}줄)</small>}
+              </li>
+            ))}
+          </ul>
+          <SortCompare />
+        </div>
         <div className="result-actions">
           {next ? (
             <MainAction className="btn gold" onClick={() => openStage(next)}>
@@ -364,6 +436,7 @@ function Result() {
           </div>
         )}
         {!err && gateTip(result) && <div className="tip-line">{gateTip(result)}</div>}
+        <SortCompare />
         {!err && !gateTip(result) && someCleared && (
           <div className="tip-line">맵마다 ? 칸이나 길이가 달라요. 한 맵에만 맞춘 코드가 아닌지, look() 으로 살펴보며 움직여 보세요.</div>
         )}

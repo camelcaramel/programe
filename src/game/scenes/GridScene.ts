@@ -55,6 +55,10 @@ export class GridScene extends Phaser.Scene {
   private bubbles: Phaser.GameObjects.Container[] = [];
   /** 조수 로봇 (몸 + 번호 표) */
   private botViews = new Map<number, Phaser.GameObjects.Container>();
+  /** 하노이 원판 (크기 → 막대) */
+  private discs = new Map<number, Phaser.GameObjects.Rectangle>();
+  /** 숫자를 보여 준 금고 번호 */
+  private vaultNums = new Set<number>();
 
   private level: Level | null = null;
   private shownKey = '';
@@ -78,6 +82,9 @@ export class GridScene extends Phaser.Scene {
     makeLockTexture(this);
     makePlateTextures(this);
     makeBarsTexture(this);
+    makeStatueTexture(this);
+    makeVaultTexture(this);
+    makeCoinTexture(this);
     this.cameras.main.setBackgroundColor(COLOR.dungeon);
     this.cameras.main.setRoundPixels(true);
     this.terrainLayer = this.add.container(0, 0);
@@ -178,9 +185,27 @@ export class GridScene extends Phaser.Scene {
         this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', alt));
         if (t === 'exit') this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', TILE.exit));
         if (t === 'plate') this.terrainLayer.add(this.add.image(cx(x), cy(y), 'plate'));
+        if (t === 'pillar') this.drawPillar(level, { x, y });
       }),
     );
     this.fit();
+  }
+
+  /** 하노이 기둥: 받침 + 막대 + 위에 이름(A·B·C) */
+  private drawPillar(level: Level, p: Pos) {
+    const k = (level.pillars ?? []).findIndex((q) => q.x === p.x && q.y === p.y);
+    const base = discBase(p);
+    const g = this.add.graphics();
+    g.fillStyle(0x353541).fillRect(cx(p.x) - 1.5, base - 19, 3, 19);
+    g.fillStyle(0xb4b0cf).fillRect(cx(p.x) - 0.5, base - 18, 1, 18);
+    g.fillStyle(0x353541).fillRect(cx(p.x) - 7.5, base - 1, 15, 3);
+    g.fillStyle(0x8d8aa6).fillRect(cx(p.x) - 6.5, base - 0.5, 13, 1.5);
+    this.terrainLayer.add(g);
+    const label = this.add
+      .text(cx(p.x), base - 23, 'ABC'[k] ?? '?', { fontFamily: FONT, fontSize: '48px', color: COLOR.goldLight, stroke: COLOR.ink, strokeThickness: 10 })
+      .setOrigin(0.5)
+      .setScale(0.16);
+    this.terrainLayer.add(label);
   }
 
   /** 움직이는 것들(상자·열쇠·문·몬스터·플레이어)을 board 상태 그대로 다시 그린다 */
@@ -195,6 +220,9 @@ export class GridScene extends Phaser.Scene {
     for (const m of this.marks) m.destroy();
     for (const b of this.botViews.values()) b.destroy();
     this.botViews.clear();
+    for (const r of this.discs.values()) r.destroy();
+    this.discs.clear();
+    this.vaultNums.clear();
     this.things.clear();
     this.hpBars.clear();
     this.marks = [];
@@ -206,6 +234,9 @@ export class GridScene extends Phaser.Scene {
     for (const g of board.gates) if (!g.open) this.addGate(g);
     for (const b of board.bars) if (!b.open) this.addThing(`bar:${keyOf(b)}`, b, 'bars');
     for (const p of board.plates) if (p.pressed) this.addThing(`pl:${keyOf(p)}`, p, 'platePressed');
+    this.drawRow(board, plan);
+    board.pegs.forEach((peg, k) => peg.forEach((size, h) => this.addDisc(k, h, size)));
+    for (const t of board.tolls) if (!t.open) this.addToll(t);
     // 아직 읽지 않은 표지판·석판에는 ? 말풍선 (내용은 read() 로만 알 수 있다)
     if (this.level) for (const sg of this.level.signs) if (!board.read.includes(keyOf(sg))) this.addSignMark(sg);
     for (const c of board.chests) if (!hidden.has(keyOf(c))) this.addThing(`c:${keyOf(c)}`, c, c.open ? TILE.chestOpen : TILE.chest);
@@ -230,6 +261,76 @@ export class GridScene extends Phaser.Scene {
     this.objLayer.bringToTop(this.player);
     // 되감기·건너뛰기로 읽기/암호 장면에 멈췄으면 말풍선도 그대로 보여 준다
     if (last && !plan) this.stepBubble(last, false);
+  }
+
+  /**
+   * 금고·석상 줄 (4부). 칸마다 번호 표. 석상은 계획 화면에서는 모두 같은 키로(무게는 비밀),
+   * 재생 화면에서는 무게 순위만큼 키를 달리해 정렬되어 가는 모습이 보이게 한다
+   */
+  private drawRow(board: BoardState, plan: boolean) {
+    const row = board.row;
+    if (!row) return;
+    const order = [...row.values].sort((a, b) => a - b);
+    const top = Math.max(1, row.values.length - 1);
+    row.cells.forEach((c, i) => {
+      if (row.kind === 'statue') {
+        const spr = this.add.image(cx(c.x), (c.y + 1) * T, 'statue').setOrigin(0.5, 1);
+        if (!plan) spr.setScale(1, 0.55 + (0.45 * order.indexOf(row.values[i])) / top);
+        this.objLayer.add(spr);
+        this.things.set(`w:${i}`, spr);
+      } else {
+        this.addThing(`v:${i}`, c, 'vault');
+        if (row.peeked[i]) this.addVaultNum(i, row.values[i], false);
+      }
+      this.addIndexTag(c, i);
+    });
+  }
+
+  /** 금고·석상 번호 표 (칸 오른쪽 아래, 0부터) */
+  private addIndexTag(c: Pos, i: number) {
+    const x = cx(c.x) + 4.5;
+    const y = cy(c.y) + 5;
+    const w = i >= 10 ? 7.5 : 5.5;
+    const bg = this.add.rectangle(x, y, w, 5, 0x7fd8ff).setStrokeStyle(0.6, 0x353541);
+    const t = this.add
+      .text(x, y + 0.2, String(i), { fontFamily: FONT, fontSize: '40px', color: '#353541' })
+      .setOrigin(0.5)
+      .setScale(0.11);
+    this.objLayer.add([bg, t]);
+    this.marks.push(bg, t);
+  }
+
+  /** 들여다본 금고 위에 숫자 판 (한 번 보면 재생이 끝날 때까지 남는다) */
+  private addVaultNum(i: number, value: number, pop: boolean) {
+    const c = this.board?.row?.cells[i] ?? this.level?.row?.cells[i];
+    if (!c || this.vaultNums.has(i)) return;
+    const t = this.add
+      .text(cx(c.x), cy(c.y) - 1.5, String(value), { fontFamily: FONT, fontSize: '48px', color: COLOR.goldLight, stroke: COLOR.ink, strokeThickness: 12 })
+      .setOrigin(0.5)
+      .setScale(0.15);
+    this.objLayer.add(t);
+    this.marks.push(t);
+    this.vaultNums.add(i);
+    if (pop) this.tweens.add({ targets: t, scale: { from: 0.26, to: 0.15 }, duration: 220, ease: 'Back.easeOut' });
+  }
+
+  /** 하노이 원판: 기둥 k 의 아래에서 h 번째 */
+  private addDisc(k: number, h: number, size: number) {
+    const p = this.level?.pillars?.[k];
+    if (!p) return;
+    const r = this.add
+      .rectangle(cx(p.x), discY(p, h), discWidth(size), 2.6, DISC_COLORS[(size - 1) % DISC_COLORS.length])
+      .setStrokeStyle(0.6, 0x353541);
+    this.objLayer.add(r);
+    this.discs.set(size, r);
+  }
+
+  /** 요금 문: 돌 문 + 동전 표시 */
+  private addToll(p: Pos) {
+    this.addThing(`t:${keyOf(p)}`, p, TILE.gate);
+    const coin = this.add.image(cx(p.x), cy(p.y) + 2, 'coin');
+    this.objLayer.add(coin);
+    this.things.set(`tc:${keyOf(p)}`, coin);
   }
 
   /** 비밀 문 + 자물쇠 */
@@ -267,6 +368,17 @@ export class GridScene extends Phaser.Scene {
       this.bubble(t, `${step.shown ?? ''}  ✔ 열림!`, '#353541', 0x7ee2a0, fresh);
     } else if (step.event === 'scan' && step.info) {
       this.bubble(t, formatMonster(step.info), '#ffffff', 0x4a3f6b, fresh);
+    } else if (step.event === 'peek' && step.num !== undefined) {
+      this.bubble(t, `peek(${step.index}) → ${step.num}`, '#353541', 0xf4eeda, fresh);
+    } else if (step.event === 'weigh' && step.pair) {
+      const [a, b] = step.pair;
+      const who = step.heavier ? a : b;
+      this.bubble(t, `heavier(${a}, ${b}) → ${step.heavier ? 'True' : 'False'}\n${who}번이 더 무거워요`, '#ffffff', 0x4a3f6b, fresh);
+    } else if (step.event === 'pay') {
+      const text = step.opened ? `${step.paid}원 ✔ 열림!` : `+${step.coin}원 → ${step.paid} / ${step.fee}원`;
+      this.bubble(t, text, '#353541', step.opened ? 0x7ee2a0 : 0xf4eeda, fresh);
+    } else if (step.event === 'pay_over') {
+      this.bubble(t, `${step.paid} / ${step.fee}원  ✘ 넘쳤어요!`, '#ffffff', 0xc0392b, fresh);
     }
   }
 
@@ -325,7 +437,7 @@ export class GridScene extends Phaser.Scene {
     (box.list[1] as Phaser.GameObjects.Arc).setFillStyle(0x8d8aa6);
   }
 
-  private addThing(id: string, p: Pos, frame: number | 'key' | 'bars' | 'platePressed') {
+  private addThing(id: string, p: Pos, frame: number | 'key' | 'bars' | 'platePressed' | 'vault') {
     const spr = typeof frame === 'string' ? this.add.image(cx(p.x), cy(p.y), frame) : this.add.sprite(cx(p.x), cy(p.y), 'td', frame);
     this.objLayer.add(spr);
     this.things.set(id, spr);
@@ -471,6 +583,51 @@ export class GridScene extends Phaser.Scene {
         this.play('magic');
         break;
       }
+      case 'peek':
+        if (step.index !== undefined && step.num !== undefined) this.addVaultNum(step.index, step.num, true);
+        this.stepBubble(step, true);
+        this.play('select');
+        break;
+      case 'weigh': {
+        this.stepBubble(step, true);
+        for (const i of step.pair ?? []) {
+          const s = this.things.get(`w:${i}`);
+          if (s) this.tweens.add({ targets: s, angle: { from: -6, to: 6 }, duration: d / 4, yoyo: true, repeat: 1, onComplete: () => s.setAngle(0) });
+        }
+        this.play('select');
+        break;
+      }
+      case 'swap':
+        this.animateSwap(step, d);
+        break;
+      case 'disc':
+        this.animateDisc(step, d);
+        break;
+      case 'pay':
+      case 'pay_over': {
+        const coin = this.add.image(p.x, p.y, 'coin');
+        this.fxLayer.add(coin);
+        this.tweens.add({ targets: coin, x: tx, y: ty, duration: d * 0.6, ease: 'Quad.easeIn', onComplete: () => coin.destroy() });
+        this.stepBubble(step, true);
+        if (step.event === 'pay_over') {
+          p.setTint(0xff6b6b);
+          this.cameras.main.flash(260, 229, 67, 65);
+          this.cameras.main.shake(180, 0.008);
+          this.play('hurt');
+          this.tweens.add({ targets: p, angle: 90, alpha: 0.45, delay: d, duration: 300 });
+        } else if (step.opened) {
+          for (const id of [`t:${tk}`, `tc:${tk}`]) {
+            const o = this.things.get(id);
+            this.things.delete(id);
+            if (o) this.tweens.add({ targets: this.retire(o), alpha: 0, scaleY: 0.2, duration: d, delay: d * 0.4, onComplete: () => o.destroy() });
+          }
+          this.spark(tx, ty, hex(COLOR.fxSpark), 16, 50);
+          this.play('magic');
+        } else {
+          this.play('coin');
+        }
+        break;
+      }
       case 'gate_wrong': {
         this.stepBubble(step, true);
         const lock = this.things.get(`gl:${tk}`);
@@ -485,6 +642,48 @@ export class GridScene extends Phaser.Scene {
         break;
       }
     }
+  }
+
+  /** 두 석상이 폴짝 뛰어 자리를 바꾼다 (번호 표는 칸에 그대로) */
+  private animateSwap(step: TraceStep, d: number) {
+    const cells = this.level?.row?.cells;
+    if (!cells || !step.pair) return;
+    const [a, b] = step.pair;
+    const sa = this.things.get(`w:${a}`);
+    const sb = this.things.get(`w:${b}`);
+    const move = (s: Phaser.GameObjects.Image | undefined, to: Pos, lift: number) => {
+      if (!s) return;
+      this.tweens.add({ targets: s, x: cx(to.x), y: (to.y + 1) * T, duration: d, ease: 'Sine.easeInOut' });
+      this.tweens.add({ targets: s, y: `-=${lift}`, duration: d / 2, yoyo: true, ease: 'Quad.easeOut' });
+    };
+    move(sa, cells[b], 7);
+    move(sb, cells[a], 4);
+    if (sa) this.things.set(`w:${b}`, sa);
+    else this.things.delete(`w:${b}`);
+    if (sb) this.things.set(`w:${a}`, sb);
+    else this.things.delete(`w:${a}`);
+    this.say((cx(cells[a].x) + cx(cells[b].x)) / 2, cy(cells[a].y) - 10, `swap(${a}, ${b})`, COLOR.goldLight, 6);
+    this.play('jump-high');
+  }
+
+  /** 원판을 들어 올려 옆 기둥으로 옮겨 내려놓는다 */
+  private animateDisc(step: TraceStep, d: number) {
+    const pillars = this.level?.pillars;
+    const disc = step.size !== undefined ? this.discs.get(step.size) : undefined;
+    if (!pillars || !disc || step.to === undefined || step.from === undefined) return;
+    const to = pillars[step.to];
+    const h = (this.board?.pegs[step.to].length ?? 1) - 1;
+    const lift = discBase(pillars[step.from]) - 24;
+    this.tweens.chain({
+      targets: disc,
+      tweens: [
+        { y: lift, duration: d * 0.3, ease: 'Quad.easeOut' },
+        { x: cx(to.x), duration: d * 0.4, ease: 'Sine.easeInOut' },
+        { y: discY(to, h), duration: d * 0.3, ease: 'Quad.easeIn' },
+      ],
+    });
+    this.say(cx(to.x), discBase(to) - 26, `${'ABC'[step.from]} → ${'ABC'[step.to]}`, COLOR.goldLight, 6);
+    this.play('select');
   }
 
   /** 미믹의 정체를 드러낸다 (상자 → 미믹 그림). 새로 드러났으면 true */
@@ -743,6 +942,85 @@ const SKILL_KO: Record<string, string> = { fireball: '불', icebolt: '얼음', l
 /** scan 말풍선: 파이썬 객체처럼 속성을 줄마다 */
 export function formatMonster(m: MonsterInfo): string {
   return `${m.kind}  hp ${m.hp}/${m.max_hp}\n약점 ${m.weak} (${SKILL_KO[m.weak] ?? ''})`;
+}
+
+/** 하노이: 기둥 칸의 바닥선, 아래에서 h 번째 원판의 가운데 높이, 원판 너비 */
+const discBase = (p: Pos) => (p.y + 1) * T - 2;
+const discY = (p: Pos, h: number) => discBase(p) - 2.3 - h * 2.9;
+const discWidth = (size: number) => 4 + size * 2.2;
+const DISC_COLORS = [0xffc533, 0x7ee2a0, 0x7fd8ff, 0xb48cff, 0xff8f6b, 0xf4eeda];
+
+/** 픽셀 그림을 텍스처로 (글자 → 색, '.' 은 빈칸) */
+function pixelTexture(scene: Phaser.Scene, key: string, px: string[], col: Record<string, number>, dy = 0) {
+  if (scene.textures.exists(key)) return;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  px.forEach((row, y) =>
+    [...row].forEach((c, x) => {
+      if (c !== '.') g.fillStyle(col[c]).fillRect(x, y + dy, 1, 1);
+    }),
+  );
+  g.generateTexture(key, T, T);
+  g.destroy();
+}
+
+/** 석상: 받침 위 돌 흉상 (4부). 무게는 그림으로 알 수 없게 모두 같은 모양 */
+function makeStatueTexture(scene: Phaser.Scene) {
+  pixelTexture(
+    scene,
+    'statue',
+    [
+      '......####......',
+      '.....#hhhh#.....',
+      '.....#hdhd#.....',
+      '.....#hhhh#.....',
+      '......#hh#......',
+      '....##hhhh##....',
+      '...#hhhhhhhh#...',
+      '...#hhddhhhh#...',
+      '....#hhhhhh#....',
+      '.....#hhhh#.....',
+      '....########....',
+      '...#pppppppp#...',
+      '...#pddddddp#...',
+      '...##########...',
+    ],
+    { '#': 0x353541, h: 0xb4b0cf, d: 0x8d8aa6, p: 0x6b6884 },
+    2,
+  );
+}
+
+/** 금고: 쇠 상자 + 금색 다이얼 (4부) */
+function makeVaultTexture(scene: Phaser.Scene) {
+  pixelTexture(
+    scene,
+    'vault',
+    [
+      '..############..',
+      '..#mmmmmmmmmm#..',
+      '..#m########m#..',
+      '..#m#llllll#m#..',
+      '..#m#l#yy#l#m#..',
+      '..#m#l#yy#l#m#..',
+      '..#m#llllll#m#..',
+      '..#m########m#..',
+      '..#mmmmmmmmmm#..',
+      '..############..',
+      '...##......##...',
+    ],
+    { '#': 0x353541, m: 0x6b6884, l: 0x8d8aa6, y: 0xffc533 },
+    3,
+  );
+}
+
+/** 통행료 동전 (요금 문 표시, 내는 동전) */
+function makeCoinTexture(scene: Phaser.Scene) {
+  pixelTexture(
+    scene,
+    'coin',
+    ['..####..', '.#yyyy#.', '#yywyyy#', '#ywyyyy#', '#yyyyyy#', '#yyyyyy#', '.#yyyy#.', '..####..'].map((r) => '....' + r),
+    { '#': 0x353541, y: 0xffc533, w: 0xfff3c4 },
+    4,
+  );
 }
 
 /** 발판: 바닥에 박힌 돌판 (눌리면 금빛 테두리를 위에 겹친다) */

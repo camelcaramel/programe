@@ -50,7 +50,11 @@ export function setAllowedApi(names: string[]) {
 }
 
 const DIRS = ['up', 'down', 'left', 'right'];
-const LOOK_VALUES = ['empty', 'wall', 'exit', 'chest', 'key', 'door', 'sign', 'tablet', 'gate', 'bars', 'bot', ...MONSTER_KINDS.filter((k) => k !== 'mimic')];
+const LOOK_VALUES = [
+  'empty', 'wall', 'exit', 'chest', 'key', 'door', 'sign', 'tablet', 'gate', 'bars', 'bot',
+  'vault', 'statue', 'pillar', 'toll',
+  ...MONSTER_KINDS.filter((k) => k !== 'mimic'),
+];
 /** 점(.) 뒤 자동완성: 몬스터 객체 속성과 조수 로봇 메서드 */
 const MEMBERS = [
   { label: 'weak', doc: '몬스터의 약점 마법 이름 (예: "lightning")', snippet: 'weak' },

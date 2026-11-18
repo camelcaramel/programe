@@ -11,7 +11,8 @@ export function Guide() {
   const tutorial = useStore(guideStore, (s) => s.tutorial);
   return (
     <>
-      {intro !== null && <Part3Intro />}
+      {intro === 3 && <Part3Intro />}
+      {intro === 4 && <Part4Intro />}
       {intro === null && concept && <ConceptCard stageId={concept} />}
       {intro === null && tutorial && !concept && <Tutorial id={tutorial.id} step={tutorial.step} />}
     </>
@@ -49,6 +50,48 @@ print(m.kind, m.hp, m.weak)
 cast(m.weak, "right")  # 약점 마법`}</pre>
         <p className="concept-game">
           <span>⚠ 조심</span> 약점이 아닌 마법을 맞히면 몬스터가 <b>반격</b>해요(HP −1). 마법을 차례로 다 넣어 보는 방법은 통하지 않아요!
+        </p>
+        <div className="result-actions">
+          <button className="btn primary" autoFocus onClick={closeIntro}>
+            시작할게요!
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 4부 안내 (처음 한 번)
+
+function Part4Intro() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeIntro();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return (
+    <div className="guide-modal" role="dialog" aria-modal="true" aria-label="4부 안내">
+      <div className="concept-card">
+        <div className="concept-ribbon">4부 · 알고리즘의 탑</div>
+        <h2 className="concept-name">같은 답, 더 적은 일!</h2>
+        <ul className="concept-text">
+          <li>
+            <b>금고</b> 속 숫자는 <code>peek(i)</code> 로, <b>석상</b>의 무게는 저울 <code>heavier(i, j)</code> 로만 알 수 있어요. 번호는 0부터예요.
+          </li>
+          <li>
+            들여다보기·저울·바꾸기에는 <b>횟수 제한</b>이 있어요(위쪽 표시). 그 알고리즘이 쓰는 만큼만 주어져서, 다른 방법은 횟수가 모자라요.
+          </li>
+          <li>
+            정렬 방에서는 결과 화면에서 내 정렬과 선택·버블·삽입 정렬의 횟수를 <b>막대로 비교</b>할 수 있어요. 34~36은 <b>도전</b> 스테이지예요.
+          </li>
+        </ul>
+        <pre className="concept-code">{`print(size())          # 석상 몇 개?
+if heavier(0, 1):      # 0번이 1번보다 무거우면
+    swap(0, 1)         # 자리 바꾸기 (1턴)`}</pre>
+        <p className="concept-game">
+          <span>💡 팁</span> 무게는 보이지 않아서 <code>sorted()</code> 나 <code>max()</code> 로는 풀 수 없어요. 비교하고 바꾸는 절차(알고리즘)를 직접 써요!
         </p>
         <div className="result-actions">
           <button className="btn primary" autoFocus onClick={closeIntro}>
