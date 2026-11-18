@@ -20,8 +20,10 @@ export interface Bypass {
 }
 
 export interface StageInfo extends StageDef {
-  /** 1부(스테이지 1~10) · 2부(11~18) · 3부(19~27) */
-  part: 1 | 2 | 3;
+  /** 1부(스테이지 1~10) · 2부(11~18) · 3부(19~27) · 4부(28~36) */
+  part: 1 | 2 | 3 | 4;
+  /** 심화 "도전" 스테이지 (4부 34~36) */
+  challenge?: boolean;
   /** 배우는 개념 (짧게) */
   concept: string;
   /** 이 스테이지에서 처음 나오는 개념 설명 카드 */
@@ -57,3 +59,5 @@ export const OBJ_API = [...PART2_API, 'scan'];
 export const CLASS_API = [...OBJ_API, 'wait', 'get_bots', 'hire'];
 /** 3부 26단계부터: get_map() 2차원 리스트 */
 export const MAP_API = [...CLASS_API, 'get_map'];
+/** 4부: 금고·석상·하노이·통행료 */
+export const ALGO_API = [...MAP_API, 'size', 'peek', 'heavier', 'swap', 'move_disc', 'pay'];

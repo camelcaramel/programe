@@ -1,8 +1,9 @@
 // 1부: 스테이지 1~10. 개념을 하나씩 연다: 순차 → for → if → while → def → 변수 → 이중 for.
-// 2부(11~18)는 part2.ts, 3부(19~27)는 part3.ts. 세 부를 이어 붙인 STAGES 가 스테이지 순서다.
+// 2부(11~18)는 part2.ts, 3부(19~27)는 part3.ts, 4부(28~36)는 part4.ts. 네 부를 이어 붙인 STAGES 가 스테이지 순서다.
 // solution / hardcoded 는 학생에게 보이지 않고, 테스트(stages.test.ts)가 "풀리는지 / 하드코딩이 막히는지" 확인한다.
 import { PART2 } from './part2';
 import { PART3 } from './part3';
+import { PART4 } from './part4';
 import { ALL_API, MOVE_API, SENSE_API, type StageInfo } from './types';
 
 export * from './types';
@@ -482,7 +483,7 @@ move_right()
   },
 ];
 
-export const STAGES: StageInfo[] = [...PART1, ...PART2, ...PART3];
+export const STAGES: StageInfo[] = [...PART1, ...PART2, ...PART3, ...PART4];
 
 export const stageIndex = (id: string) => STAGES.findIndex((s) => s.id === id);
 export const getStage = (id: string) => STAGES[stageIndex(id)];
