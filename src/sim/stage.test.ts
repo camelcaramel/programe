@@ -97,7 +97,7 @@ describe('buildLevel', () => {
     expect(() => buildLevel(def(['SSE']), 1)).toThrow(/정확히 1개/);
     expect(() => buildLevel(def(['S..']), 1)).toThrow(/출구/);
     expect(() => buildLevel(def(['S.E', '..']), 1)).toThrow(/길이/);
-    expect(() => buildLevel(def(['S.xE']), 1)).toThrow(/알 수 없는 문자/);
+    expect(() => buildLevel(def(['S.ZE']), 1)).toThrow(/알 수 없는 문자/);
     expect(() => buildLevel(def(['S?E'], { random: { '?': [] } }), 1)).toThrow(/후보가 없어요/);
     expect(() => buildLevel(def(['S?E'], { random: { '?': ['S'] } }), 1)).toThrow(/시작 위치/);
   });

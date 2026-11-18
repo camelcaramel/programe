@@ -564,12 +564,14 @@ button.concept:focus-visible { outline: 3px solid var(--gold); outline-offset: 2
 .stage-card:active:not(:disabled) { transform: translateY(3px); box-shadow: var(--drop-2); }
 .stage-card:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 .stage-card.cleared { background: linear-gradient(180deg, var(--cleared-top), var(--cleared-bottom)); }
-.stage-card.locked { cursor: default; background: var(--dusk); color: var(--ink-2); }
+.stage-card.next { border-color: var(--gold-dark); box-shadow: var(--drop-5), 0 0 0 4px var(--gold-light); }
+.sc-next {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: 1px 10px; white-space: nowrap;
+  font-size: 13px; font-weight: 700; color: var(--ink); background: var(--gold-light); border: 2px solid var(--ink); border-radius: 99px;
+}
 .sc-num { display: grid; place-items: center; width: 44px; height: 44px; font-size: 24px; background: var(--gold); border: var(--border-base) solid var(--ink); border-radius: var(--radius-lg); }
-.locked .sc-num { background: var(--mist); }
 .sc-title { margin-top: 4px; font-size: 19px; }
 .sc-concept { font-size: 14px; color: var(--brown); }
-.locked .sc-concept { color: var(--ink-2); }
 .sc-stars { display: flex; gap: 2px; margin-top: 4px; height: 26px; }
 .sc-stars .star-icon, .sc-stars svg { width: 24px; height: 24px; }
 
@@ -629,19 +631,11 @@ button.concept:focus-visible { outline: 3px solid var(--gold); outline-offset: 2
 .tut-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tut-wait { font-size: 14px; color: var(--brown); }
 
-/* ---- 스테이지 선택: 1부 · 2부 */
+/* ---- 스테이지 선택: 1부 · 2부 · 3부 */
+.select-tip { width: 100%; margin: -6px 0 12px; font-size: 15px; color: #fff; text-shadow: var(--o1); }
 .part-head { display: flex; align-items: baseline; gap: 12px; width: 100%; margin: 6px 0 8px; color: #fff; text-shadow: var(--o2); }
 .part-head h3 { margin: 0; font-size: 24px; font-weight: 400; }
 .part-head small { font-size: 15px; color: var(--gold-light); text-shadow: var(--o1); }
-.part-head .locked-note { margin-left: auto; padding: 2px 10px; font-size: 14px; font-weight: 600; color: var(--ink); text-shadow: none; background: rgba(255, 248, 234, 0.92); border: 2px solid var(--ink); border-radius: 99px; }
 .title-links { margin-top: 10px; }
 .title-links .link { font-size: 15px; color: #fff; text-shadow: var(--o1); }
 .stage-grid + .part-head { margin-top: 28px; }
-
-/* ---- 교사용 "모두 열기" */
-.teacher-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; width: 100%; margin: 0 0 10px; padding: 6px 14px; font-size: 14px; color: var(--ink); background: rgba(255, 248, 234, 0.94); border: 2px solid var(--ink); border-radius: 12px; }
-.teacher-note b { color: var(--cover-dark); }
-.teacher-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; width: 100%; margin-top: 24px; padding: 8px 14px; font-size: 15px; color: #fff; text-shadow: var(--o1); background: rgba(20, 16, 30, 0.55); border: 2px dashed var(--gold-light); border-radius: 12px; }
-.teacher-bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-.teacher-bar input { width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer; }
-.teacher-bar small { font-size: 14px; color: var(--gold-light); }

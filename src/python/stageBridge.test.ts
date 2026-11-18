@@ -274,3 +274,91 @@ print(type(s) == str, s, type(t) == list, t, len(t))
     expect(r.runs[0].error).toMatch(/move 은\(는\) 아직 배우지 않은 명령/);
   });
 });
+
+describe('3부: 객체 · 클래스 · 지도', () => {
+  const mut = (hp: number, weak: 'fireball' | 'icebolt' | 'lightning') => ({ hp, weak });
+  const p3 = (map: string[], muts: { hp: number; weak: 'fireball' | 'icebolt' | 'lightning' }[] = [], extra: Partial<StageDef> = {}) =>
+    stage(map, { seeds: [1], content: () => ({ monsters: muts }), ...extra });
+
+  it('scan 은 Monster 객체(속성 kind·hp·max_hp·weak) 또는 None, hp 는 지금 값', () => {
+    const r = run(
+      strip(`
+m = scan("right")
+print(m.kind, m.hp, m.max_hp, m.weak)
+print(scan("left") is None)
+cast(m.weak, "right")
+print(m.hp, m)
+cast(m.weak, "right")
+print(m.hp, scan("right"))
+move_right()
+move_right()
+move_right()
+`),
+      p3(['So.E'], [mut(4, 'lightning')]),
+    );
+    expect(r.runs[0].error).toBeNull();
+    expect(r.runs[0].out).toEqual([
+      'ghost 4 4 lightning',
+      'True',
+      "2 Monster(kind='ghost', hp=2, max_hp=4, weak='lightning')",
+      '0 None',
+    ]);
+    expect(r.ok).toBe(true);
+  });
+
+  it('None 의 속성을 읽으면 친절한 오류', () => {
+    const r = run('print(scan("right").weak)\n', p3(['S.E']));
+    expect(r.runs[0].error).toMatch(/is None/);
+  });
+
+  const BOT_MAP = ['#####', '#RP.#', '#####', 'S==.E'];
+  const HELPER = strip(`
+class Helper:
+    def __init__(self, bot):
+        self.bot = bot
+        self.left = 1
+
+    def act(self):
+        if self.left > 0:
+            self.bot.move("right")
+            self.left = self.left - 1
+
+hire(Helper(get_bots()[0]))
+while look("right") != "exit":
+    if look("right") == "bars":
+        wait()
+    else:
+        move_right()
+move_right()
+`);
+
+  it('클래스로 만든 조수를 hire 하면 마법사가 턴을 쓸 때마다 act() 가 불린다', () => {
+    const r = run(HELPER, p3(BOT_MAP));
+    expect(r.runs[0].error).toBeNull();
+    expect(r.ok).toBe(true);
+    const t = r.runs[0].summary.trace;
+    expect(t[0]).toMatchObject({ event: 'wait', bots: [{ id: 0, event: 'move' }], barsOpen: ['1,3', '2,3'] });
+    expect(t[1].bots).toBeUndefined(); // 다 세었으니 가만히
+  });
+
+  it('로봇을 act() 밖에서 움직이거나, hire 에 클래스·함수를 넣으면 오류', () => {
+    expect(run('get_bots()[0].move("right")\n', p3(BOT_MAP)).runs[0].error).toMatch(/act\(\) 안에서만/);
+    expect(run('class H:\n    def act(self):\n        pass\nhire(H)\n', p3(BOT_MAP)).runs[0].error).toMatch(/클래스가 아니라 객체/);
+    expect(run('def act():\n    pass\nhire(act)\n', p3(BOT_MAP)).runs[0].error).toMatch(/act\(\) 메서드/);
+  });
+
+  it('self 를 빠뜨리거나 __init__ 에서 안 만든 속성을 쓰면 친절한 오류', () => {
+    const noSelf = 'class H:\n    def act():\n        pass\nhire(H())\nwait()\n';
+    expect(run(noSelf, p3(BOT_MAP)).runs[0].error).toMatch(/self 를 꼭/);
+    const noAttr = 'class H:\n    def act(self):\n        self.n = self.n + 1\nhire(H())\nwait()\n';
+    const r = run(noAttr, p3(BOT_MAP));
+    expect(r.runs[0].error).toMatch(/self\.n = /);
+    expect(r.runs[0].line).toBe(3);
+  });
+
+  it('get_map 은 2차원 리스트, 딕셔너리 KeyError 는 친절한 오류', () => {
+    const r = run('g = get_map()\nprint(len(g), len(g[0]), g[0][2])\nd = {}\nprint(d["ghost"])\n', p3(['S.kE']));
+    expect(r.runs[0].out).toEqual(['1 4 key']);
+    expect(r.runs[0].error).toMatch(/키/);
+  });
+});

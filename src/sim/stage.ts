@@ -4,10 +4,12 @@
 //   c  보물상자  k  열쇠     D  문
 //   s  슬라임    b  박쥐     g  외눈 거인
 //   T  표지판    M  석판     G  비밀 문   (2부. 내용·암호는 StageDef.content 가 시드로 만든다)
+//   o  유령      x  거미     q  게        m  미믹(상자인 척)   (3부 변이 몬스터. HP·약점은 content 가 정한다)
+//   R  조수 로봇  P  발판     =  창살      (3부)
 //   그 밖의 문자는 StageDef.random 에 후보를 적어 랜덤 칸으로 쓴다 (보통 '?')
 import { StageError } from './errors';
 import { createRng } from './rng';
-import { DEFAULT_MAX_TURNS, DEFAULT_PLAYER_HP, MONSTER_CHAR } from './rules';
+import { DEFAULT_MAX_TURNS, DEFAULT_PLAYER_HP, MONSTER_CHAR, MONSTER_RULES, SKILLS } from './rules';
 import type { ContentSlots, Level, Pos, StageDef, Terrain } from './types';
 
 const TERRAIN_CHAR: Record<string, Terrain> = {
@@ -18,6 +20,8 @@ const TERRAIN_CHAR: Record<string, Terrain> = {
   T: 'sign',
   M: 'tablet',
   G: 'gate',
+  P: 'plate',
+  '=': 'bars',
 };
 
 export function buildLevel(def: StageDef, seed: number): Level {
@@ -59,10 +63,11 @@ export function buildLevel(def: StageDef, seed: number): Level {
     randomCells: [],
     signs: [],
     gates: [],
+    bots: [],
   };
   /** 랜덤 칸을 뽑은 뒤의 맵 (content 에 넘긴다) */
   const resolved: string[] = [];
-  const slots: ContentSlots = { rows: resolved, signs: [], tablets: [], gates: [] };
+  const slots: ContentSlots = { rows: resolved, signs: [], tablets: [], gates: [], monsters: level.monsters };
   let starts = 0;
   let exits = 0;
 
@@ -90,6 +95,7 @@ export function buildLevel(def: StageDef, seed: number): Level {
       if (ch in MONSTER_CHAR) level.monsters.push({ ...here, kind: MONSTER_CHAR[ch] });
       else if (ch === 'c') level.chests.push(here);
       else if (ch === 'k') level.keys.push(here);
+      else if (ch === 'R') level.bots.push(here);
       else if (ch === 'S') {
         level.start = here;
         starts++;
@@ -101,9 +107,11 @@ export function buildLevel(def: StageDef, seed: number): Level {
 
   // 표지판·석판·비밀 문의 내용 (랜덤 칸을 다 뽑은 뒤 같은 rng 로 만들므로 시드가 같으면 내용도 같다)
   const nSlots = slots.signs.length + slots.tablets.length + slots.gates.length;
-  if (nSlots > 0) {
+  const mutants = level.monsters.filter((m) => MONSTER_RULES[m.kind].mutant).length;
+  if (nSlots > 0 || def.content) {
     if (!def.content) fail('표지판(T)·석판(M)·비밀 문(G)이 있으면 content 함수가 필요해요');
-    const c = def.content!(rng, slots);
+    // 맵에서 찾은 몬스터 목록은 content 가 바꾸지 못하게 복사해서 넘긴다
+    const c = def.content!(rng, { ...slots, monsters: level.monsters.map((m) => ({ ...m })) });
     const signs = c.signs ?? [];
     const tablets = c.tablets ?? [];
     const gates = c.gates ?? [];
@@ -114,7 +122,19 @@ export function buildLevel(def: StageDef, seed: number): Level {
     slots.tablets.forEach((p, i) => level.signs.push({ ...p, kind: 'tablet', value: [...tablets[i]] }));
     slots.gates.forEach((p, i) => level.gates.push({ ...p, code: gates[i] }));
     level.signs.sort((a, b) => a.y - b.y || a.x - b.x);
+    const muts = c.monsters ?? [];
+    if (muts.length > 0 && muts.length !== level.monsters.length)
+      fail(`몬스터 ${level.monsters.length}마리인데 변이 정보는 ${muts.length}개예요`);
+    muts.forEach((mu, i) => {
+      if (!mu) return;
+      if (!(SKILLS as string[]).includes(mu.weak)) fail(`알 수 없는 약점 마법: ${mu.weak}`);
+      if (!(mu.hp > 0)) fail(`몬스터 HP 는 1 이상이어야 해요: ${mu.hp}`);
+      level.monsters[i] = { ...level.monsters[i], hp: mu.hp, weak: mu.weak };
+    });
   }
+  if (level.monsters.some((m) => MONSTER_RULES[m.kind].mutant && !m.weak))
+    fail(`변이 몬스터(유령·거미·게·미믹) ${mutants}마리의 HP·약점을 content 의 monsters 로 정해야 해요`);
+  if (def.scanLimit !== undefined) level.scanLimit = typeof def.scanLimit === 'function' ? def.scanLimit(resolved) : def.scanLimit;
 
   if (starts !== 1) fail(`시작 위치(S)는 정확히 1개여야 해요 (지금 ${starts}개)`);
   if (exits < 1) fail('출구(E)가 없어요');

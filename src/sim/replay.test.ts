@@ -21,7 +21,7 @@ describe('boardAt', () => {
     expect(start.keyItems).toEqual([{ x: 1, y: 0 }]);
     expect(start.doors).toEqual([{ x: 2, y: 0, open: false }]);
     expect(start.chests).toEqual([{ x: 3, y: 0, open: false }]);
-    expect(start.monsters).toEqual([{ x: 4, y: 0, kind: 'giant', hp: 4, maxHp: 4 }]);
+    expect(start.monsters).toEqual([{ x: 4, y: 0, kind: 'giant', hp: 4, maxHp: 4, revealed: true }]);
 
     const afterDoor = boardAt(lv, r.trace, 2);
     expect(afterDoor.keyItems).toEqual([]);

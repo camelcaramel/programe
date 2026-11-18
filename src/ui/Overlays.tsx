@@ -1,11 +1,11 @@
 import { gameStore, toastStore, uiStore, useStore } from '../state/store';
-import { isUnlocked, progressStore, setUnlockAll, teacherMode, teacherStore } from '../state/codeStore';
+import { nextRecommended, progressStore } from '../state/codeStore';
 import { goSelect, goTitle, openStage } from '../game/play';
 import { STAGES, type StageInfo } from '../stages';
 import { replayTutorial } from '../state/guide';
 import { TILE } from '../game/scenes/GridScene';
 import { EngineStatus, tileImg } from './SidePanel';
-import { LockIcon, StarIcon } from './icons';
+import { StarIcon } from './icons';
 
 export function Toasts() {
   const toasts = useStore(toastStore, (s) => s.toasts);
@@ -82,10 +82,17 @@ function TitleScreen() {
   );
 }
 
+/** 선택 화면의 부 나누기 */
+const PARTS: { part: StageInfo['part']; title: string; sub: string }[] = [
+  { part: 1, title: '1부 · 첫 주문들', sub: '순서 · for · if · while · 함수' },
+  { part: 2, title: '2부 · 기억과 목록', sub: '변수 · 자료형 · 리스트 · return' },
+  { part: 3, title: '3부 · 객체와 조수들', sub: '객체 · 딕셔너리 · 클래스 · 2차원 리스트 · 탐색' },
+];
+
 function StageSelect() {
   const progress = useStore(progressStore, (s) => s.stages);
-  const unlockAll = useStore(teacherStore, (s) => s.unlockAll);
   const total = STAGES.reduce((n, s) => n + (progress[s.id]?.stars ?? 0), 0);
+  const next = nextRecommended(progress);
   return (
     <div className="overlay select dungeon-bg" style={floorBg}>
       <div className="screen wide">
@@ -99,34 +106,11 @@ function StageSelect() {
             {total} / {STAGES.length * 3}
           </div>
         </div>
-        {unlockAll && (
-          <div className="teacher-note" role="status">
-            <span>
-              🔓 교사용 <b>모두 열기</b>가 켜져 있어요. 앞 단계를 깨지 않아도 모든 스테이지를 열 수 있어요.
-            </span>
-            <button className="link dark" onClick={() => setUnlockAll(false)}>
-              끄기
-            </button>
-          </div>
-        )}
-        <PartSection part={1} title="1부 · 첫 주문들" sub="순서 · for · if · while · 함수" progress={progress} unlockAll={unlockAll} />
-        <PartSection part={2} title="2부 · 기억과 목록" sub="변수 · 자료형 · 리스트 · return" progress={progress} unlockAll={unlockAll} />
-        {teacherMode && <TeacherBar unlockAll={unlockAll} />}
+        <p className="select-tip">모든 스테이지가 열려 있어요. 번호 순서대로 하면 개념을 차례로 배울 수 있어요.</p>
+        {PARTS.map((p) => (
+          <PartSection key={p.part} {...p} progress={progress} next={next} />
+        ))}
       </div>
-    </div>
-  );
-}
-
-/** 주소에 ?teacher 가 있을 때만 보이는 교사용 막대 */
-function TeacherBar({ unlockAll }: { unlockAll: boolean }) {
-  return (
-    <div className="teacher-bar">
-      <span>👩‍🏫 교사용</span>
-      <label>
-        <input type="checkbox" checked={unlockAll} onChange={(e) => setUnlockAll(e.currentTarget.checked)} />
-        모든 스테이지 열기
-      </label>
-      <small>이 브라우저에만 저장돼요. 별 기록은 그대로예요.</small>
     </div>
   );
 }
@@ -136,42 +120,41 @@ function PartSection({
   title,
   sub,
   progress,
-  unlockAll,
+  next,
 }: {
-  part: 1 | 2;
+  part: StageInfo['part'];
   title: string;
   sub: string;
   progress: Record<string, { stars: number }>;
-  unlockAll: boolean;
+  next: string | null;
 }) {
   const list: [StageInfo, number][] = STAGES.map((s, i) => [s, i] as [StageInfo, number]).filter(([s]) => s.part === part);
-  const firstOpen = isUnlocked(list[0][0].id, progress, unlockAll);
-  const prevPart = STAGES.filter((s) => s.part === part - 1).length;
   return (
     <>
       <div className="part-head">
         <h3>{title}</h3>
         <small>{sub}</small>
-        {!firstOpen && <span className="locked-note">🔒 {prevPart}단계를 클리어하면 열려요</span>}
       </div>
       <div className="stage-grid">
         {list.map(([s, i]) => {
-          const open = isUnlocked(s.id, progress, unlockAll);
           const stars = progress[s.id]?.stars ?? 0;
+          const isNext = s.id === next;
           return (
             <button
               key={s.id}
-              className={`stage-card ${open ? '' : 'locked'} ${stars > 0 ? 'cleared' : ''}`}
-              disabled={!open}
+              className={`stage-card ${stars > 0 ? 'cleared' : ''} ${isNext ? 'next' : ''}`}
               onClick={() => openStage(s.id)}
-              title={open ? s.goal : '앞 스테이지를 클리어하면 열려요'}
-              aria-label={`${i + 1}. ${s.title} (${s.concept})${open ? ` 별 ${stars}개` : ' 잠김'}`}
+              title={s.goal}
+              aria-label={`${i + 1}. ${s.title} (${s.concept}) 별 ${stars}개${isNext ? ', 다음 추천' : ''}`}
             >
+              {isNext && <span className="sc-next">다음 추천</span>}
               <span className="sc-num">{i + 1}</span>
               <span className="sc-title">{s.title}</span>
               <span className="sc-concept">{s.concept}</span>
               <span className="sc-stars">
-                {open ? [0, 1, 2].map((k) => <StarIcon key={k} on={k < stars} />) : <LockIcon />}
+                {[0, 1, 2].map((k) => (
+                  <StarIcon key={k} on={k < stars} />
+                ))}
               </span>
             </button>
           );

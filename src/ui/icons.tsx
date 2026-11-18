@@ -46,16 +46,3 @@ export function HeartIcon({ on }: { on: boolean }) {
     </svg>
   );
 }
-
-/** 자물쇠 */
-export function LockIcon() {
-  return (
-    <svg viewBox="0 0 48 48" aria-hidden>
-      <g stroke={INK} strokeWidth="3.2" strokeLinejoin="round">
-        <path d="M15 21v-6a9 9 0 0 1 18 0v6" fill="none" />
-        <rect x="9" y="21" width="30" height="21" rx="5" fill="#ffc533" />
-      </g>
-      <circle cx="24" cy="31" r="3" fill={INK} />
-    </svg>
-  );
-}

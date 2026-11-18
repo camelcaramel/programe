@@ -15,7 +15,7 @@ FILENAME = "<내 코드>"
 
 _SAFE_NAMES = [
     "abs", "all", "any", "bool", "dict", "divmod", "enumerate", "filter", "float",
-    "int", "isinstance", "len", "list", "map", "max", "min", "pow", "range",
+    "getattr", "hasattr", "int", "isinstance", "len", "list", "map", "max", "min", "pow", "range",
     "reversed", "round", "set", "sorted", "str", "sum", "tuple", "type", "zip",
     "Exception", "ValueError", "TypeError", "KeyError", "IndexError",
     "ZeroDivisionError", "RuntimeError", "NameError", "AttributeError",
@@ -28,6 +28,7 @@ STAGE_API_NAMES = (
     "move_up", "move_down", "move_left", "move_right",
     "look", "cast", "get_hp", "get_pos", "get_coins", "get_keys", "print",
     "read", "open_gate", "move",
+    "scan", "wait", "get_bots", "hire", "get_map",
 )
 
 
@@ -57,15 +58,30 @@ def _compile_student(code_str):
 
 
 def _friendly(e):
-    msg = str(e)
+    # 게임 명령은 _run_stage 안의 함수라서 이름 앞에 "_run_stage.<locals>." 가 붙는다 → 떼어 낸다
+    msg = str(e).replace("_run_stage.<locals>.", "")
     if isinstance(e, ImportError):
         return "import 는 사용할 수 없어요. 게임 명령(move_right, look, cast ...)만 쓸 수 있어요."
     if isinstance(e, NameError):
         return f"이름을 찾을 수 없어요: {msg}  → 철자나 따옴표를 확인해 보세요."
     if isinstance(e, ZeroDivisionError):
         return "0 으로 나눌 수 없어요."
+    if isinstance(e, AttributeError) and "'NoneType'" in msg:
+        return ("None 에는 속성이 없어요. scan() 이 None 을 돌려줬나 봐요(그쪽에 몬스터가 없어요). "
+                "m is None 으로 먼저 확인해 보세요.")
+    if isinstance(e, AttributeError) and "object has no attribute" in msg:
+        name = msg.rsplit("attribute", 1)[1].strip().strip("'")
+        owner = msg.split("'", 2)[1] if msg.count("'") >= 2 else "객체"
+        return (f"{owner} 객체에 {name} 속성이 없어요. 철자를 확인하고, 내가 만든 클래스라면 "
+                f"__init__ 에서 self.{name} = ... 으로 먼저 만들어 두세요.")
     if isinstance(e, AttributeError):
         return f"없는 속성이에요: {msg}"
+    if isinstance(e, KeyError):
+        return f"딕셔너리에 그 키(이름표)가 없어요: {msg}  → 키 in 딕셔너리 로 먼저 확인해 보세요."
+    if isinstance(e, TypeError) and "unhashable type" in msg:
+        return "리스트는 딕셔너리의 키로 쓸 수 없어요. 좌표는 튜플 (x, y) 로 써 보세요."
+    if isinstance(e, TypeError) and "takes 0 positional arguments but 1 was given" in msg and "." in msg.split("(", 1)[0]:
+        return "메서드를 만들 때는 첫 번째 매개변수로 self 를 꼭 적어요. 예: def act(self):"
     if isinstance(e, TypeError) and ("can only concatenate str" in msg or ("unsupported operand" in msg and "'str'" in msg)):
         return "글자(문자열)와 숫자는 바로 더할 수 없어요. int() 로 바꿔 보세요."
     if isinstance(e, IndexError):
@@ -147,6 +163,57 @@ def _gate_code(code):
     return type(code).__name__, "null"
 
 
+class Monster:
+    """scan() 이 돌려주는 몬스터 객체. kind·max_hp·weak 는 그대로이고, hp 는 읽을 때마다 지금 HP 를 알려 준다."""
+
+    def __init__(self, info, api):
+        self.kind = info["kind"]
+        self.max_hp = int(info["max_hp"])
+        self.weak = info["weak"]
+        self._id = info["id"]
+        self._api = api
+
+    @property
+    def hp(self):
+        return int(self._api.monster_hp(self._id))
+
+    def __eq__(self, other):
+        return isinstance(other, Monster) and other._id == self._id
+
+    def __hash__(self):
+        return hash(self._id)
+
+    def __repr__(self):
+        return f"Monster(kind={self.kind!r}, hp={self.hp}, max_hp={self.max_hp}, weak={self.weak!r})"
+
+
+class Bot:
+    """get_bots() 가 돌려주는 조수 로봇. move·cast 는 hire() 한 조수의 act() 안에서만 (한 턴에 하나)."""
+
+    def __init__(self, number, api):
+        self.number = number
+        self._api = api
+
+    def move(self, direction):
+        _check(self._api.bot_move(self.number, direction, _student_line()))
+
+    def cast(self, skill, direction):
+        _check(self._api.bot_cast(self.number, skill, direction, _student_line()))
+
+    def look(self, direction):
+        return _check(self._api.bot_look(self.number, direction, _student_line()))
+
+    def read(self, direction):
+        return json.loads(_check(self._api.bot_read(self.number, direction, _student_line()))[4:])
+
+    def scan(self, direction):
+        info = json.loads(_check(self._api.bot_scan(self.number, direction, _student_line()))[4:])
+        return None if info is None else Monster(info, self._api)
+
+    def __repr__(self):
+        return f"Bot({self.number})"
+
+
 def _run_stage(code_str, api, limits_json):
     """시드 하나를 실행한다. 게임 상태는 api 쪽 World 에 남고, 여기서는 오류·출력만 돌려준다."""
     limits = json.loads(limits_json)
@@ -156,26 +223,68 @@ def _run_stage(code_str, api, limits_json):
         if len(out) < 50:
             out.append(sep.join(str(a) for a in args))
 
+    # 3부: hire() 한 조수들. 마법사가 1턴을 쓸 때마다 모두 act() 를 한 번씩 부른다
+    helpers = []
+    bots = []
+    round_needed = bool(api.needs_round())
+
+    def _after_turn():
+        if not round_needed:
+            return
+        _check(api.round_begin())
+        for h in list(helpers):
+            h.act()
+        _check(api.round_end())
+
     def move_up():
         _check(api.move("up", _student_line()))
+        _after_turn()
 
     def move_down():
         _check(api.move("down", _student_line()))
+        _after_turn()
 
     def move_left():
         _check(api.move("left", _student_line()))
+        _after_turn()
 
     def move_right():
         _check(api.move("right", _student_line()))
+        _after_turn()
 
     def look(direction):
         return _check(api.look(direction, _student_line()))
 
     def cast(skill, direction):
         _check(api.cast(skill, direction, _student_line()))
+        _after_turn()
 
     def move(direction):
         _check(api.move(direction, _student_line()))
+        _after_turn()
+
+    def wait():
+        _check(api.wait(_student_line()))
+        _after_turn()
+
+    def scan(direction):
+        info = json.loads(_check(api.scan(direction, _student_line()))[4:])
+        return None if info is None else Monster(info, api)
+
+    def get_map():
+        return json.loads(_check(api.get_map(_student_line()))[4:])
+
+    def get_bots():
+        if not bots:
+            bots.extend(Bot(i, api) for i in range(int(api.bot_count())))
+        return list(bots)
+
+    def hire(helper):
+        if isinstance(helper, type):
+            raise ValueError("hire() 에는 클래스가 아니라 객체를 넣어요. hire(Helper(bot)) 처럼 괄호를 붙여 객체를 만드세요.")
+        if not callable(getattr(helper, "act", None)):
+            raise ValueError("hire() 에는 act() 메서드가 있는 조수 객체를 넣어요. 예: hire(Helper(bot))")
+        helpers.append(helper)
 
     def read(direction):
         res = _check(api.read(direction, _student_line()))
@@ -187,6 +296,7 @@ def _run_stage(code_str, api, limits_json):
         if len(shown) > 40:
             shown = shown[:37] + "..."
         _check(api.open_gate(direction, kind, value, shown, _student_line()))
+        _after_turn()
 
     def get_hp():
         return int(api.hp())
@@ -205,6 +315,7 @@ def _run_stage(code_str, api, limits_json):
         "look": look, "cast": cast, "get_hp": get_hp, "get_pos": get_pos,
         "get_coins": get_coins, "get_keys": get_keys, "print": _print,
         "move": move, "read": read, "open_gate": open_gate,
+        "scan": scan, "wait": wait, "get_bots": get_bots, "hire": hire, "get_map": get_map,
     }
     allowed = limits.get("api") or list(STAGE_API_NAMES)
     safe = dict(_SAFE)

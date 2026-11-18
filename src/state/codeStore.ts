@@ -60,32 +60,13 @@ export function recordStars(stageId: string, stars: number): boolean {
 
 export const starsOf = (stageId: string) => progressStore.get().stages[stageId]?.stars ?? 0;
 
-// ---------------- 교사용 "모두 열기" ----------------
-const TEACHER_KEY = 'programe.teacher.v1';
+// ---------------- 추천 순서 ----------------
+// 모든 스테이지는 처음부터 열려 있다 (교사가 수업 순서를 정할 수 있게). 번호 순서가 추천 순서이고,
+// 아직 깨지 않은 첫 스테이지를 "다음 추천"으로 표시한다.
 
-/** 주소 끝에 ?teacher 를 붙여 들어오면 스테이지 선택 화면에 교사용 막대가 보인다 */
-export const teacherMode = (() => {
-  try {
-    return new URLSearchParams(location.search).has('teacher') || location.hash === '#teacher';
-  } catch {
-    return false;
-  }
-})();
-
-/** unlockAll: 이 브라우저에서 모든 스테이지를 연다 (별 기록은 건드리지 않음) */
-export const teacherStore = createStore<{ unlockAll: boolean }>({ unlockAll: read(TEACHER_KEY, { unlockAll: false }).unlockAll === true });
-teacherStore.subscribe(() => write(TEACHER_KEY, teacherStore.get()));
-
-export function setUnlockAll(on: boolean) {
-  teacherStore.set({ unlockAll: on });
-}
-
-/** 첫 스테이지이거나 바로 앞 스테이지를 클리어했으면 열린다. 교사용 "모두 열기"가 켜져 있으면 모두 열린다 */
-export function isUnlocked(stageId: string, stages = progressStore.get().stages, unlockAll = teacherStore.get().unlockAll): boolean {
-  if (unlockAll) return true;
-  const i = STAGES.findIndex((s) => s.id === stageId);
-  if (i <= 0) return true;
-  return (stages[STAGES[i - 1].id]?.stars ?? 0) > 0;
+/** 번호 순서로 처음 만나는, 아직 클리어하지 않은 스테이지 (모두 깼으면 null) */
+export function nextRecommended(stages = progressStore.get().stages): string | null {
+  return STAGES.find((s) => (stages[s.id]?.stars ?? 0) === 0)?.id ?? null;
 }
 
 export function resetProgress() {
