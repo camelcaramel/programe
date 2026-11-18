@@ -296,13 +296,29 @@ function HelpTab() {
           <li>벽에 부딪히면 제자리에서 턴만 써요. 몬스터에게 부딪히면 HP 가 줄어요.</li>
           <li>출구에 닿으면 그 순간 성공, 남은 코드는 실행되지 않아요.</li>
           <li>열쇠를 가지고 문으로 가면 열쇠 1개를 써서 문이 열려요.</li>
-          {stage.part === 2 && (
+          {stage.part >= 2 && (
             <>
               <li>
                 <b>표지판</b>·<b>석판</b>의 내용은 계획 화면에서 가려져 있어요. 바로 옆에서 <code>read()</code> 로 읽어야 알 수 있어요.
               </li>
               <li>
                 <b>비밀 문</b>은 <code>open_gate()</code> 로 맞는 암호를 넣으면 열려요. 틀리면 경보가 울려 HP −1!
+              </li>
+            </>
+          )}
+          {stage.part === 3 && (
+            <>
+              <li>
+                <b>변이 몬스터</b>(유령·거미·게·미믹)는 HP 와 약점이 실행마다 바뀌어요. <code>scan()</code> 으로 읽어요. 약점이 아닌 마법을 맞히면 <b>반격</b>(HP −1)!
+              </li>
+              <li>
+                <b>미믹</b>은 상자인 척해요. <code>look()</code> 도 <code>"chest"</code> 라고 해요. 부딪히면 HP −3.
+              </li>
+              <li>
+                <b>조수 로봇</b>은 <code>hire()</code> 한 객체의 <code>act()</code> 가 조종해요. 내가 1턴을 쓸 때마다 모두 한 번씩, 함께 움직여요.
+              </li>
+              <li>
+                <b>창살</b>은 모든 <b>발판</b>에 로봇이 서 있고 몬스터가 하나도 없을 때만 열려요. 발판은 <code>look()</code> 에 안 보여요.
               </li>
             </>
           )}
@@ -350,8 +366,29 @@ function HelpTab() {
         <div className="cards">
           {MONSTER_KINDS.map((k) => {
             const m = MONSTER_RULES[k];
+            if (m.mutant && stage.part < 3) return null;
             const weak = m.damage.fire > 0 ? 'fireball(불)' : 'icebolt(얼음)';
             const casts = Math.ceil(m.hp / Math.max(m.damage.fire, m.damage.ice));
+            if (m.mutant)
+              return (
+                <div className="card" key={k}>
+                  <div className="card-icon">
+                    <img src={tileImg(TILE[k])} alt="" className="pixel" />
+                  </div>
+                  <div>
+                    <div className="card-title">
+                      <code>"{k}"</code> {m.label} <span className="muted">변이</span>
+                    </div>
+                    <div className="muted">
+                      HP·약점: 실행마다 바뀜 · 부딪히면 내 HP −{m.contact}
+                      {k === 'mimic' && ' · 겉보기엔 "chest"'}
+                    </div>
+                    <div>
+                      <code>scan()</code> 의 <b>m.weak</b> 마법은 2 피해. 다른 마법은 0 피해 + <b>반격</b>
+                    </div>
+                  </div>
+                </div>
+              );
             return (
               <div className="card" key={k}>
                 <div className="card-icon">
@@ -374,7 +411,7 @@ function HelpTab() {
         </div>
       </section>
 
-      {stage.part === 2 && (
+      {stage.part >= 2 && (
         <section>
           <h3>자료형</h3>
           <table>
@@ -403,6 +440,34 @@ function HelpTab() {
                 </td>
                 <td>문자열 → 정수. <code>str(42)</code> 는 정수 → 문자열. <code>type(x)</code> 로 자료형을 볼 수 있어요.</td>
               </tr>
+              {stage.part === 3 && (
+                <>
+                  <tr>
+                    <td>
+                      <code>None</code>
+                    </td>
+                    <td>"아무것도 없음". <code>m is None</code> 으로 확인해요.</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>{'{"ghost": "lightning"}'}</code>
+                    </td>
+                    <td>딕셔너리(dict). 키 → 값. <code>book["ghost"]</code>, <code>"ghost" in book</code></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>(3, 5)</code>
+                    </td>
+                    <td>튜플(tuple). 바꿀 수 없는 리스트. 좌표를 딕셔너리 키로 쓸 때 좋아요.</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>grid[y][x]</code>
+                    </td>
+                    <td>2차원 리스트. 줄(y)을 먼저, 칸(x)을 나중에.</td>
+                  </tr>
+                </>
+              )}
             </tbody>
           </table>
         </section>
@@ -424,7 +489,21 @@ while look("right") == "empty":  # 조건이 참인 동안 반복
 def room():               # 함수 만들기
     move_up()
     move_down()
-room()                    # 함수 부르기`}</pre>
+room()                    # 함수 부르기`}
+          {stage.part === 3 &&
+            `
+
+class Helper:             # 클래스 (객체의 틀)
+    def __init__(self, bot):
+        self.bot = bot    # 객체가 기억할 값
+        self.left = 3
+
+    def act(self):        # 메서드
+        self.left = self.left - 1
+
+h = Helper(get_bots()[0]) # 객체 만들기
+hire(h)`}
+        </pre>
       </section>
 
       <section>

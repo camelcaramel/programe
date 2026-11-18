@@ -1,18 +1,62 @@
 // 새 개념 카드와 첫 사용자 튜토리얼 (외부 라이브러리 없이 React 로 직접)
 import { useEffect, useState, type ReactNode } from 'react';
 import { gameStore, useStore } from '../state/store';
-import { closeConcept, endTutorial, guideStore, tutorialStep, type TutorialId } from '../state/guide';
+import { closeConcept, closeIntro, endTutorial, guideStore, tutorialStep, type TutorialId } from '../state/guide';
 import { getStage, stageIndex } from '../stages';
 import { mapScreenRect } from '../game/scenes/GridScene';
 
 export function Guide() {
+  const intro = useStore(guideStore, (s) => s.intro);
   const concept = useStore(guideStore, (s) => s.concept);
   const tutorial = useStore(guideStore, (s) => s.tutorial);
   return (
     <>
-      {concept && <ConceptCard stageId={concept} />}
-      {tutorial && !concept && <Tutorial id={tutorial.id} step={tutorial.step} />}
+      {intro !== null && <Part3Intro />}
+      {intro === null && concept && <ConceptCard stageId={concept} />}
+      {intro === null && tutorial && !concept && <Tutorial id={tutorial.id} step={tutorial.step} />}
     </>
+  );
+}
+
+// ---------------------------------------------------------------- 3부 안내 (처음 한 번)
+
+function Part3Intro() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeIntro();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return (
+    <div className="guide-modal" role="dialog" aria-modal="true" aria-label="3부 안내">
+      <div className="concept-card">
+        <div className="concept-ribbon">3부 · 객체와 조수들</div>
+        <h2 className="concept-name">고등 과정에 온 걸 환영해요!</h2>
+        <ul className="concept-text">
+          <li>
+            몬스터가 <b>변이</b>해서 약점이 실행마다 바뀌어요. <code>scan()</code> 이 돌려주는 <b>객체</b>의 속성(<code>m.weak</code>)을 읽어야 해요.
+          </li>
+          <li>
+            <b>클래스</b>로 조수 로봇을 만들어 <code>hire()</code> 로 고용하면, 내가 한 턴을 쓸 때마다 조수들이 함께 움직여요.
+          </li>
+          <li>
+            <code>get_map()</code> 으로 맵 전체를 <b>2차원 리스트</b>로 받아 가장 짧은 길을 <b>탐색</b>해요.
+          </li>
+        </ul>
+        <pre className="concept-code">{`m = scan("right")      # 몬스터 객체 (없으면 None)
+print(m.kind, m.hp, m.weak)
+cast(m.weak, "right")  # 약점 마법`}</pre>
+        <p className="concept-game">
+          <span>⚠ 조심</span> 약점이 아닌 마법을 맞히면 몬스터가 <b>반격</b>해요(HP −1). 마법을 차례로 다 넣어 보는 방법은 통하지 않아요!
+        </p>
+        <div className="result-actions">
+          <button className="btn primary" autoFocus onClick={closeIntro}>
+            시작할게요!
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

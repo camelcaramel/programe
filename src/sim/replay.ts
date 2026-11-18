@@ -129,7 +129,7 @@ export function applyStep(state: BoardState, step: TraceStep): void {
       hurtMonster(state, t, step.event, step.amount);
       break;
   }
-  if (step.action !== 'wait' && (step.dir === 'left' || step.dir === 'right')) state.facing = step.dir;
+  if (step.action !== 'wait' && step.by === undefined && (step.dir === 'left' || step.dir === 'right')) state.facing = step.dir;
   state.pos = { ...step.pos };
   state.hp = step.hp;
   state.coins = step.coins;

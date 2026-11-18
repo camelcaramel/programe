@@ -363,7 +363,14 @@ export class World {
   botRead(id: unknown, dir: unknown): SignValue {
     const bot = this.botById(id);
     const d = this.checkDir(dir);
-    return copyValue(this.readAt(this.botStep(bot, d), d));
+    const t = this.botStep(bot, d);
+    const value = this.readAt(t, d);
+    // 재생 때 표지판 위 말풍선이 보이도록 마법사의 읽기처럼 남긴다 (위치는 표지판 칸)
+    if (this.reads < MAX_READ_TRACE) {
+      this.reads++;
+      this.trace.push({ ...this.snapshot('read', d, 'read', t, true), value: copyValue(value), by: bot.id });
+    }
+    return copyValue(value);
   }
 
   botScan(id: unknown, dir: unknown): MonsterInfo | null {

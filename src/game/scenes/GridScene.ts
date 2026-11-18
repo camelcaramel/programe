@@ -1,7 +1,7 @@
 // 탑다운 그리드 렌더러. 게임 규칙은 모르고, gameStore 의 맵(Level)과 실행 기록(trace)만 보고 그린다.
 //  - 재생이 한 칸씩 앞으로 가면 애니메이션, 그 밖(되감기·건너뛰기)은 boardAt 으로 즉시 다시 그림
 import Phaser from 'phaser';
-import { boardAt, initialBoard, type BoardState, type Level, type Pos, type SignValue, type TraceStep } from '../../sim';
+import { boardAt, initialBoard, type BoardState, type BotStep, type Level, type MonsterInfo, type Pos, type SignValue, type TraceStep } from '../../sim';
 import { currentTrace, gameStore, uiStore } from '../../state/store';
 import { FONT, makeDotTexture } from '../systems/effects';
 import { COLOR, NO_TINT, hex } from '../../ui/tokens';
@@ -24,12 +24,17 @@ export const TILE = {
   sign: 66, // 나무 표지판 (2부)
   tablet: 65, // 돌 석판 (2부)
   gate: 46, // 비밀 문 = 큰 문 + 코드로 그린 자물쇠 (2부)
+  ghost: 121, // 3부 변이 몬스터
+  spider: 122,
+  crab: 110,
+  mimic: 92, // 정체가 드러나기 전에는 chest(89) 로 그린다
+  bot: 96, // 조수 로봇 (갑옷 인형) + 번호 표
 } as const;
 
 const SFX = ['bump', 'coin', 'disappear', 'gem', 'hurt', 'jump-high', 'magic', 'select'] as const;
 type Sfx = (typeof SFX)[number];
 
-const SKILL_TINT = { fireball: hex(COLOR.fxFire), icebolt: hex(COLOR.fxIce) } as const;
+const SKILL_TINT = { fireball: hex(COLOR.fxFire), icebolt: hex(COLOR.fxIce), lightning: hex(COLOR.fxThunder) } as const;
 
 const keyOf = (p: Pos) => `${p.x},${p.y}`;
 const cx = (x: number) => x * T + T / 2;
@@ -48,6 +53,8 @@ export class GridScene extends Phaser.Scene {
   /** 표지판 칸("x,y") → 그 위의 ? 표시 (읽으면 지운다) */
   private signMarks = new Map<string, Phaser.GameObjects.GameObject[]>();
   private bubbles: Phaser.GameObjects.Container[] = [];
+  /** 조수 로봇 (몸 + 번호 표) */
+  private botViews = new Map<number, Phaser.GameObjects.Container>();
 
   private level: Level | null = null;
   private shownKey = '';
@@ -69,6 +76,8 @@ export class GridScene extends Phaser.Scene {
     makeDotTexture(this);
     makeKeyTexture(this);
     makeLockTexture(this);
+    makePlateTextures(this);
+    makeBarsTexture(this);
     this.cameras.main.setBackgroundColor(COLOR.dungeon);
     this.cameras.main.setRoundPixels(true);
     this.terrainLayer = this.add.container(0, 0);
@@ -168,6 +177,7 @@ export class GridScene extends Phaser.Scene {
         const alt = Math.abs(h) % 7 === 0 ? TILE.floorAlt[Math.abs(h) % TILE.floorAlt.length] : TILE.floor;
         this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', alt));
         if (t === 'exit') this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', TILE.exit));
+        if (t === 'plate') this.terrainLayer.add(this.add.image(cx(x), cy(y), 'plate'));
       }),
     );
     this.fit();
@@ -183,6 +193,8 @@ export class GridScene extends Phaser.Scene {
     for (const o of this.things.values()) o.destroy();
     for (const g of this.hpBars.values()) g.destroy();
     for (const m of this.marks) m.destroy();
+    for (const b of this.botViews.values()) b.destroy();
+    this.botViews.clear();
     this.things.clear();
     this.hpBars.clear();
     this.marks = [];
@@ -192,16 +204,20 @@ export class GridScene extends Phaser.Scene {
 
     for (const d of board.doors) if (!d.open) this.addThing(`d:${keyOf(d)}`, d, TILE.door);
     for (const g of board.gates) if (!g.open) this.addGate(g);
+    for (const b of board.bars) if (!b.open) this.addThing(`bar:${keyOf(b)}`, b, 'bars');
+    for (const p of board.plates) if (p.pressed) this.addThing(`pl:${keyOf(p)}`, p, 'platePressed');
     // 아직 읽지 않은 표지판·석판에는 ? 말풍선 (내용은 read() 로만 알 수 있다)
     if (this.level) for (const sg of this.level.signs) if (!board.read.includes(keyOf(sg))) this.addSignMark(sg);
     for (const c of board.chests) if (!hidden.has(keyOf(c))) this.addThing(`c:${keyOf(c)}`, c, c.open ? TILE.chestOpen : TILE.chest);
     for (const k of board.keyItems) if (!hidden.has(keyOf(k))) this.addThing(`k:${keyOf(k)}`, k, 'key');
     for (const m of board.monsters) {
       if (hidden.has(keyOf(m))) continue;
-      const spr = this.addThing(`m:${keyOf(m)}`, m, TILE[m.kind]);
-      this.idle(spr);
+      const disguised = m.kind === 'mimic' && !m.revealed;
+      const spr = this.addThing(`m:${keyOf(m)}`, m, disguised ? TILE.chest : TILE[m.kind]);
+      if (!disguised) this.idle(spr);
       this.drawHp(m);
     }
+    for (const b of board.bots) this.addBot(b);
     if (plan && this.level) for (const p of this.level.randomCells) this.addQuestion(p);
 
     this.player
@@ -249,6 +265,8 @@ export class GridScene extends Phaser.Scene {
       this.bubble(t, `${step.shown ?? ''}  ✘ ${why}`, '#ffffff', 0xc0392b, fresh);
     } else if (step.event === 'gate_open') {
       this.bubble(t, `${step.shown ?? ''}  ✔ 열림!`, '#353541', 0x7ee2a0, fresh);
+    } else if (step.event === 'scan' && step.info) {
+      this.bubble(t, formatMonster(step.info), '#ffffff', 0x4a3f6b, fresh);
     }
   }
 
@@ -288,8 +306,27 @@ export class GridScene extends Phaser.Scene {
     }
   }
 
-  private addThing(id: string, p: Pos, frame: number | 'key') {
-    const spr = frame === 'key' ? this.add.image(cx(p.x), cy(p.y), 'key') : this.add.sprite(cx(p.x), cy(p.y), 'td', frame);
+  /** 조수 로봇: 몸(갑옷 인형) + 머리 위 번호 표. 고장 나면 잿빛 */
+  private addBot(b: BoardState['bots'][number]) {
+    const body = this.add.sprite(0, 0, 'td', TILE.bot).setFlipX(b.facing === 'left');
+    const tag = this.add.circle(5, -6, 3.2, 0x7fd8ff).setStrokeStyle(0.75, 0x353541);
+    const num = this.add
+      .text(5, -5.8, String(b.id), { fontFamily: FONT, fontSize: '40px', color: '#353541' })
+      .setOrigin(0.5)
+      .setScale(0.13);
+    const box = this.add.container(cx(b.x), cy(b.y), [body, tag, num]);
+    if (b.broken) this.breakBot(box);
+    this.objLayer.add(box);
+    this.botViews.set(b.id, box);
+  }
+
+  private breakBot(box: Phaser.GameObjects.Container) {
+    (box.list[0] as Phaser.GameObjects.Sprite).setTint(0x77748c).setAngle(-12);
+    (box.list[1] as Phaser.GameObjects.Arc).setFillStyle(0x8d8aa6);
+  }
+
+  private addThing(id: string, p: Pos, frame: number | 'key' | 'bars' | 'platePressed') {
+    const spr = typeof frame === 'string' ? this.add.image(cx(p.x), cy(p.y), frame) : this.add.sprite(cx(p.x), cy(p.y), 'td', frame);
     this.objLayer.add(spr);
     this.things.set(id, spr);
     return spr;
@@ -333,10 +370,12 @@ export class GridScene extends Phaser.Scene {
     this.bubbles = [];
     this.tweens.killTweensOf(p);
     p.setPosition(cx(prev.pos.x), cy(prev.pos.y)).setAngle(0).setAlpha(1).clearTint();
-    if (step.dir === 'left' || step.dir === 'right') p.setFlipX(step.dir === 'left');
+    if (step.action !== 'wait' && step.by === undefined && (step.dir === 'left' || step.dir === 'right')) p.setFlipX(step.dir === 'left');
     const tx = cx(step.target.x);
     const ty = cy(step.target.y);
     const tk = keyOf(step.target);
+    // 조수 로봇들은 마법사와 같은 턴에 함께 움직인다 (창살·발판도 그 뒤에 맞춘다)
+    if (step.bots || step.barsOpen) this.animateRound(step, d);
 
     switch (step.event) {
       case 'move':
@@ -377,6 +416,7 @@ export class GridScene extends Phaser.Scene {
         this.cameras.main.shake(90, 0.004);
         break;
       case 'hit':
+        if (this.reveal(tk)) this.say(tx, ty - 9, '덥석!', COLOR.fxDamage, 7);
         this.nudge(p, tx, ty, d);
         p.setTint(hex(COLOR.fxHurt));
         this.time.delayedCall(d, () => p.clearTint());
@@ -388,7 +428,27 @@ export class GridScene extends Phaser.Scene {
       case 'damage':
       case 'kill':
       case 'miss':
-        this.cast(step, d, tx, ty, tk);
+        this.cast(p, step, d, tx, ty, tk);
+        if (step.counter) {
+          // 약점이 아닌 마법: 몬스터의 반격
+          this.time.delayedCall(d * 0.75, () => {
+            p.setTint(hex(COLOR.fxHurt));
+            this.say(cx(prev.pos.x), cy(prev.pos.y) - 8, `반격! -${step.counter}`, COLOR.fxDamage, 7);
+            this.nudge(p, cx(prev.pos.x) * 2 - tx, cy(prev.pos.y) * 2 - ty, d);
+            this.play('hurt');
+            this.cameras.main.shake(140, 0.008);
+            this.time.delayedCall(d, () => p.clearTint());
+            if (step.hp <= 0) this.tweens.add({ targets: p, angle: 90, alpha: 0.45, delay: d, duration: 300 });
+          });
+        }
+        break;
+      case 'scan':
+        this.reveal(tk);
+        this.stepBubble(step, true);
+        this.play('select');
+        break;
+      case 'wait':
+        this.say(p.x, p.y - 8, '…', COLOR.lavender, 7);
         break;
       case 'read': {
         for (const m of this.signMarks.get(tk) ?? []) {
@@ -427,9 +487,86 @@ export class GridScene extends Phaser.Scene {
     }
   }
 
-  private cast(step: TraceStep, d: number, tx: number, ty: number, tk: string) {
+  /** 미믹의 정체를 드러낸다 (상자 → 미믹 그림). 새로 드러났으면 true */
+  private reveal(tk: string): boolean {
+    const mon = this.things.get(`m:${tk}`) as Phaser.GameObjects.Sprite | undefined;
+    const m = this.board?.monsters.find((m) => keyOf(m) === tk) ?? (this.level?.monsters.find((m) => keyOf(m) === tk));
+    if (!mon || !m || m.kind !== 'mimic' || mon.frame.name === String(TILE.mimic)) return false;
+    mon.setFrame(TILE.mimic);
+    this.idle(mon);
+    this.tweens.add({ targets: mon, scale: { from: 1.35, to: 1 }, duration: 220, ease: 'Back.easeOut' });
+    return true;
+  }
+
+  /** 한 턴 동안 조수 로봇들이 한 일 + 창살·발판 맞추기 (마법사 연출과 동시에) */
+  private animateRound(step: TraceStep, d: number) {
+    for (const b of step.bots ?? []) this.animateBot(b, d);
+    const board = this.board;
+    if (!board) return;
+    this.time.delayedCall(d, () => {
+      for (const pl of board.plates) {
+        const id = `pl:${keyOf(pl)}`;
+        const has = this.things.get(id);
+        if (pl.pressed && !has) {
+          this.addThing(id, pl, 'platePressed');
+          this.objLayer.sendToBack(this.things.get(id)!);
+        } else if (!pl.pressed && has) {
+          has.destroy();
+          this.things.delete(id);
+        }
+      }
+      for (const c of board.bars) {
+        const id = `bar:${keyOf(c)}`;
+        const has = this.things.get(id);
+        if (c.open && has) {
+          this.things.delete(id);
+          this.tweens.add({ targets: this.retire(has), y: has.y - 6, alpha: 0, duration: d, onComplete: () => has.destroy() });
+          this.play('select');
+        } else if (!c.open && !has) {
+          const bar = this.addThing(id, c, 'bars');
+          this.tweens.add({ targets: bar, y: { from: bar.y - 6, to: bar.y }, alpha: { from: 0, to: 1 }, duration: d });
+          this.play('bump');
+        }
+      }
+    });
+  }
+
+  private animateBot(b: BotStep, d: number) {
+    const box = this.botViews.get(b.id);
+    if (!box) return;
+    const body = box.list[0] as Phaser.GameObjects.Sprite;
+    if (b.dir === 'left' || b.dir === 'right') body.setFlipX(b.dir === 'left');
+    const tx = cx(b.target.x);
+    const ty = cy(b.target.y);
+    if (b.action === 'move') {
+      if (b.event === 'move') {
+        this.tweens.add({ targets: box, x: tx, y: ty, duration: d, ease: 'Sine.easeInOut' });
+        this.tweens.add({ targets: body, scaleY: 0.86, duration: d / 2, yoyo: true, ease: 'Sine.easeOut' });
+      } else {
+        this.tweens.add({ targets: box, x: box.x + (tx - box.x) * 0.3, y: box.y + (ty - box.y) * 0.3, duration: d / 2, yoyo: true, ease: 'Quad.easeOut' });
+      }
+      return;
+    }
+    this.cast(box, b, d, tx, ty, keyOf(b.target));
+    if (b.broken)
+      this.time.delayedCall(d * 0.75, () => {
+        this.breakBot(box);
+        this.say(box.x, box.y - 8, '고장!', COLOR.fxDamage, 6);
+        this.play('hurt');
+      });
+  }
+
+  /** from(마법사나 조수)에서 대상 칸으로 마법 구슬 */
+  private cast(
+    from: { x: number; y: number },
+    step: Pick<TraceStep, 'skill' | 'event' | 'amount'>,
+    d: number,
+    tx: number,
+    ty: number,
+    tk: string,
+  ) {
     const tint = step.skill ? SKILL_TINT[step.skill] : NO_TINT;
-    const ball = this.add.image(this.player.x, this.player.y, 'dot').setTint(tint).setScale(0.45).setBlendMode(Phaser.BlendModes.ADD);
+    const ball = this.add.image(from.x, from.y, 'dot').setTint(tint).setScale(0.45).setBlendMode(Phaser.BlendModes.ADD);
     this.fxLayer.add(ball);
     this.play('magic');
     this.tweens.add({
@@ -441,6 +578,7 @@ export class GridScene extends Phaser.Scene {
       onComplete: () => {
         ball.destroy();
         this.spark(tx, ty, tint, step.event === 'miss' ? 5 : 14, step.event === 'miss' ? 25 : 55);
+        if (step.event !== 'miss') this.reveal(tk);
         const mon = this.things.get(`m:${tk}`);
         if (step.event === 'miss') return;
         if (step.event === 'kill') {
@@ -598,6 +736,43 @@ export function formatValue(v: SignValue): string {
   const lines: string[] = [];
   for (let i = 0; i < v.length; i += perLine) lines.push(v.slice(i, i + perLine).map(one).join(', '));
   return '[' + lines.join(',\n ') + ']';
+}
+
+const SKILL_KO: Record<string, string> = { fireball: '불', icebolt: '얼음', lightning: '번개' };
+
+/** scan 말풍선: 파이썬 객체처럼 속성을 줄마다 */
+export function formatMonster(m: MonsterInfo): string {
+  return `${m.kind}  hp ${m.hp}/${m.max_hp}\n약점 ${m.weak} (${SKILL_KO[m.weak] ?? ''})`;
+}
+
+/** 발판: 바닥에 박힌 돌판 (눌리면 금빛 테두리를 위에 겹친다) */
+function makePlateTextures(scene: Phaser.Scene) {
+  if (scene.textures.exists('plate')) return;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  g.fillStyle(0x353541).fillRect(2, 2, 12, 12);
+  g.fillStyle(0x8d8aa6).fillRect(3, 3, 10, 10);
+  g.fillStyle(0xb4b0cf).fillRect(3, 3, 10, 2);
+  g.fillStyle(0x6b6884).fillRect(5, 7, 6, 4);
+  g.generateTexture('plate', T, T);
+  g.clear();
+  g.lineStyle(1, 0xffc533).strokeRect(2.5, 2.5, 11, 11);
+  g.fillStyle(0xffe07a, 0.55).fillRect(5, 7, 6, 4);
+  g.generateTexture('platePressed', T, T);
+  g.destroy();
+}
+
+/** 창살: 쇠막대 4개 + 가로대 (Kenney 팔레트) */
+function makeBarsTexture(scene: Phaser.Scene) {
+  if (scene.textures.exists('bars')) return;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  g.fillStyle(0x353541).fillRect(0, 2, 16, 2).fillRect(0, 12, 16, 2);
+  g.fillStyle(0x8d8aa6).fillRect(0, 2.5, 16, 1).fillRect(0, 12.5, 16, 1);
+  for (const x of [1, 5, 9, 13]) {
+    g.fillStyle(0x353541).fillRect(x, 0, 3, 16);
+    g.fillStyle(0xcfc8e6).fillRect(x + 1, 0, 1, 16);
+  }
+  g.generateTexture('bars', T, T);
+  g.destroy();
 }
 
 /** 비밀 문 자물쇠 (보라 몸통 + 금색 고리, Kenney 팔레트 외곽선) */

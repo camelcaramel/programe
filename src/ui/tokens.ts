@@ -23,6 +23,7 @@ export const COLOR = {
   // 게임 효과 (Phaser)
   fxFire: '#ff8a3d',
   fxIce: '#7fd8ff',
+  fxThunder: '#fff27a',
   fxSpark: '#ffd34d',
   fxHurt: '#ff6b6b',
   fxDamage: '#ff8f8f',

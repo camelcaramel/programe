@@ -186,6 +186,8 @@ export interface TraceStep {
   shown?: string;
   /** gate_wrong: 값은 같아 보이는데 자료형이 달라서 틀림 (예: "42" 와 42) */
   typeMismatch?: boolean;
+  /** read: 조수 로봇이 읽었으면 그 로봇 번호 (마법사는 그대로 있다) */
+  by?: number;
   /** scan: 살펴본 몬스터 */
   info?: MonsterInfo;
   /** cast: 약점이 아닌 마법이라 반격으로 잃은 HP */

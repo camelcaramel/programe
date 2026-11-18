@@ -50,10 +50,22 @@ export function setAllowedApi(names: string[]) {
 }
 
 const DIRS = ['up', 'down', 'left', 'right'];
-const LOOK_VALUES = ['empty', 'wall', 'exit', 'chest', 'key', 'door', 'sign', 'tablet', 'gate', ...MONSTER_KINDS];
+const LOOK_VALUES = ['empty', 'wall', 'exit', 'chest', 'key', 'door', 'sign', 'tablet', 'gate', 'bars', 'bot', ...MONSTER_KINDS.filter((k) => k !== 'mimic')];
+/** 점(.) 뒤 자동완성: 몬스터 객체 속성과 조수 로봇 메서드 */
+const MEMBERS = [
+  { label: 'weak', doc: '몬스터의 약점 마법 이름 (예: "lightning")', snippet: 'weak' },
+  { label: 'hp', doc: '몬스터의 지금 HP', snippet: 'hp' },
+  { label: 'max_hp', doc: '몬스터의 처음 HP', snippet: 'max_hp' },
+  { label: 'kind', doc: '몬스터 종류 (예: "ghost")', snippet: 'kind' },
+  { label: 'move', doc: '조수 로봇: 한 칸 이동 (act() 안에서, 한 턴에 하나)', snippet: 'move("${1|right,left,up,down|}")' },
+  { label: 'cast', doc: '조수 로봇: 마법 (act() 안에서, 한 턴에 하나)', snippet: 'cast(${1:m.weak}, "${2|right,left,up,down|}")' },
+  { label: 'look', doc: '조수 로봇: 옆 칸 살펴보기', snippet: 'look("${1|right,left,up,down|}")' },
+  { label: 'read', doc: '조수 로봇: 옆 칸 표지판 읽기', snippet: 'read("${1|up,down,left,right|}")' },
+  { label: 'scan', doc: '조수 로봇: 옆 칸 몬스터 객체', snippet: 'scan("${1|right,left,up,down|}")' },
+];
 
 monaco.languages.registerCompletionItemProvider('python', {
-  triggerCharacters: ['"', "'"],
+  triggerCharacters: ['"', "'", '.'],
   provideCompletionItems(model, position) {
     const word = model.getWordUntilPosition(position);
     const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
@@ -63,7 +75,21 @@ monaco.languages.registerCompletionItemProvider('python', {
       suggestions: list.map((w) => ({ label: w, kind: K.EnumMember, insertText: w, documentation: doc, range })),
     });
 
-    if (/cast\(\s*["']\w*$/.test(before)) return words(['fireball', 'icebolt'], 'fireball = 불(슬라임 약점), icebolt = 얼음(박쥐·외눈 거인 약점)');
+    if (/cast\(\s*["']\w*$/.test(before))
+      return words(['fireball', 'icebolt', 'lightning'], 'fireball = 불(슬라임 약점), icebolt = 얼음(박쥐·외눈 거인 약점), lightning = 번개(3부)');
+    if (/\.\w*$/.test(before) && !/["']/.test(before.slice(before.lastIndexOf('.')))) {
+      if (!allowed.includes('scan')) return { suggestions: [] };
+      return {
+        suggestions: MEMBERS.map((m) => ({
+          label: m.label,
+          kind: K.Field,
+          insertText: m.snippet,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: m.doc,
+          range,
+        })),
+      };
+    }
     if (/(look\(|read\(|open_gate\(|move\(|cast\(\s*["']\w+["']\s*,)\s*["']\w*$/.test(before)) return words(DIRS, '방향');
     if (/[=!]=\s*["']\w*$/.test(before)) return words(LOOK_VALUES, 'look() 이 돌려주는 값');
     if (/["']\w*$/.test(before)) return { suggestions: [] };

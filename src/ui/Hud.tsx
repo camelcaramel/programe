@@ -239,11 +239,15 @@ function Controls() {
 
 // ---------------------------------------------------------------- 결과 (도크 안)
 
-/** 실패한 맵에서 비밀 문 암호가 틀렸다면 그 이유를 알려 주는 한 줄 (2부) */
+/** 실패한 맵에서 자주 하는 실수(틀린 암호, 반격, 미믹 …)를 알려 주는 한 줄 (2·3부) */
 function gateTip(result: NonNullable<ReturnType<typeof gameStore.get>['result']>): string | null {
   const steps = result.runs.filter((r) => !r.summary.cleared).flatMap((r) => r.summary.trace);
   if (steps.some((t) => t.typeMismatch)) return '값은 맞는데 자료형이 달라요! "42"(문자열)와 42(정수)는 다른 값이에요. int() 나 str() 로 바꿔 보세요.';
   if (steps.some((t) => t.event === 'gate_wrong')) return '비밀 문에 틀린 암호를 넣었어요(경보, HP −1). print() 로 넣으려는 값을 먼저 확인해 보세요.';
+  // 3부
+  if (steps.some((t) => t.counter)) return '약점이 아닌 마법을 써서 반격을 받았어요! 몬스터의 약점은 맵마다 바뀌니 scan() 으로 m.weak 를 읽어 보세요.';
+  if (steps.some((t) => t.bots?.some((b) => b.broken))) return '조수 로봇이 약점이 아닌 마법을 써서 고장 났어요. self.bot.scan(방향).weak 로 약점을 읽어 보세요.';
+  if (steps.some((t) => t.event === 'hit' && t.amount === 3)) return '미믹에 물렸어요! look() 은 미믹도 "chest" 라고 해요. scan() 이 None 이 아니면 미믹이에요.';
   return null;
 }
 

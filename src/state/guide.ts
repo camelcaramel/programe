@@ -6,6 +6,8 @@ import { createStore, gameStore, uiStore } from './store';
 export type TutorialId = 'basic' | 'random';
 
 export interface GuideState {
+  /** 지금 띄운 "부 안내" 카드 (3부 처음 들어올 때) */
+  intro: number | null;
   /** 지금 띄운 개념 카드의 스테이지 */
   concept: string | null;
   /** 지금 진행 중인 튜토리얼과 단계 */
@@ -16,6 +18,8 @@ const SEEN_KEY = 'programe.guide.v1';
 interface Seen {
   concepts: string[];
   tutorials: TutorialId[];
+  /** 본 부 안내 (3) */
+  intros: number[];
 }
 
 function loadSeen(): Seen {
@@ -23,12 +27,12 @@ function loadSeen(): Seen {
     const raw = localStorage.getItem(SEEN_KEY);
     if (raw) {
       const v = JSON.parse(raw) as Partial<Seen>;
-      return { concepts: v.concepts ?? [], tutorials: v.tutorials ?? [] };
+      return { concepts: v.concepts ?? [], tutorials: v.tutorials ?? [], intros: v.intros ?? [] };
     }
   } catch {
     /* 저장소를 쓸 수 없으면 처음부터 */
   }
-  return { concepts: [], tutorials: [] };
+  return { concepts: [], tutorials: [], intros: [] };
 }
 
 let seen = loadSeen();
@@ -40,15 +44,16 @@ function saveSeen() {
   }
 }
 
-export const guideStore = createStore<GuideState>({ concept: null, tutorial: null });
+export const guideStore = createStore<GuideState>({ intro: null, concept: null, tutorial: null });
 
-/** 스테이지를 열 때 차례로 띄울 것 (개념 카드 → 튜토리얼) */
-let queue: Array<{ kind: 'concept'; stageId: string } | { kind: 'tutorial'; id: TutorialId }> = [];
+/** 스테이지를 열 때 차례로 띄울 것 (부 안내 → 개념 카드 → 튜토리얼) */
+let queue: Array<{ kind: 'intro'; part: number } | { kind: 'concept'; stageId: string } | { kind: 'tutorial'; id: TutorialId }> = [];
 
 function next() {
   const item = queue.shift();
-  if (!item) return guideStore.set({ concept: null, tutorial: null });
-  if (item.kind === 'concept') guideStore.set({ concept: item.stageId, tutorial: null });
+  if (!item) return guideStore.set({ intro: null, concept: null, tutorial: null });
+  if (item.kind === 'intro') guideStore.set({ intro: item.part, concept: null, tutorial: null });
+  else if (item.kind === 'concept') guideStore.set({ intro: null, concept: item.stageId, tutorial: null });
   else beginTutorial(item.id);
 }
 
@@ -56,6 +61,7 @@ function next() {
 export function onStageOpen(stageId: string) {
   queue = [];
   const stage = getStage(stageId);
+  if (stage.part === 3 && !seen.intros.includes(3)) queue.push({ kind: 'intro', part: 3 });
   if (stage.concepts?.length && !seen.concepts.includes(stageId)) queue.push({ kind: 'concept', stageId });
   if (stageId === STAGES[0].id && !seen.tutorials.includes('basic')) queue.push({ kind: 'tutorial', id: 'basic' });
   if (stageId === 'stage-05' && !seen.tutorials.includes('random')) queue.push({ kind: 'tutorial', id: 'random' });
@@ -65,7 +71,23 @@ export function onStageOpen(stageId: string) {
 /** 스테이지를 나가면 띄운 것을 모두 닫는다 */
 export function closeGuide() {
   queue = [];
-  guideStore.set({ concept: null, tutorial: null });
+  guideStore.set({ intro: null, concept: null, tutorial: null });
+}
+
+// ---------------- 부 안내 ----------------
+
+export function closeIntro() {
+  const part = guideStore.get().intro;
+  if (part !== null && !seen.intros.includes(part)) {
+    seen = { ...seen, intros: [...seen.intros, part] };
+    saveSeen();
+  }
+  next();
+}
+
+/** 부 안내 다시 보기 */
+export function showIntro(part: number) {
+  guideStore.set({ intro: part });
 }
 
 // ---------------- 개념 카드 ----------------
