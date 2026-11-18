@@ -77,6 +77,8 @@ export interface StageContent {
   gates?: GateCode[];
   /** 몬스터 순서대로 변이 정보 (null 이면 기본 규칙). 변이 몬스터(ghost·spider·crab·mimic)는 꼭 정해야 한다 */
   monsters?: (MonsterMutation | null)[];
+  /** 턴 제한을 내용(몬스터 HP 등)을 보고 다시 정할 때 */
+  maxTurns?: number;
 }
 
 /** 스테이지 정의 (src/stages/*.ts 에서 작성) */

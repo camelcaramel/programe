@@ -122,6 +122,7 @@ export function buildLevel(def: StageDef, seed: number): Level {
     slots.tablets.forEach((p, i) => level.signs.push({ ...p, kind: 'tablet', value: [...tablets[i]] }));
     slots.gates.forEach((p, i) => level.gates.push({ ...p, code: gates[i] }));
     level.signs.sort((a, b) => a.y - b.y || a.x - b.x);
+    if (c.maxTurns !== undefined) level.maxTurns = c.maxTurns;
     const muts = c.monsters ?? [];
     if (muts.length > 0 && muts.length !== level.monsters.length)
       fail(`몬스터 ${level.monsters.length}마리인데 변이 정보는 ${muts.length}개예요`);

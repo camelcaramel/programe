@@ -1,7 +1,7 @@
 // 모든 스테이지가 "의도한 풀이로 풀리고, 하드코딩으로는 막히는지" 실제 Pyodide 로 확인한다.
 import { loadPyodide } from 'pyodide';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { buildLevel } from '../sim';
+import { buildLevel, type Level } from '../sim';
 import PRELUDE from '../python/prelude.py?raw';
 import { runStageWith, type PyRunStage } from '../python/stageBridge';
 import { STAGES, countCodeLines, type StageInfo } from './index';
@@ -18,15 +18,15 @@ const levelsOf = (s: StageInfo) => s.seeds.map((seed) => buildLevel(s, seed));
 const run = (s: StageInfo, code: string) => runStageWith(pyRunStage, code, levelsOf(s), { time_limit: 1, api: s.api });
 
 describe('스테이지 목록', () => {
-  it('1부 10개 + 2부 8개, id 중복 없음', () => {
-    expect(STAGES).toHaveLength(18);
-    expect(new Set(STAGES.map((s) => s.id)).size).toBe(18);
-    expect(STAGES.map((s) => s.part)).toEqual([...Array(10).fill(1), ...Array(8).fill(2)]);
+  it('1부 10개 + 2부 8개 + 3부 9개, id 중복 없음', () => {
+    expect(STAGES).toHaveLength(27);
+    expect(new Set(STAGES.map((s) => s.id)).size).toBe(27);
+    expect(STAGES.map((s) => s.part)).toEqual([...Array(10).fill(1), ...Array(8).fill(2), ...Array(9).fill(3)]);
   });
 
-  it('PART2.md §7 표대로 새 개념 카드가 있다', () => {
+  it('PART2.md §7 · PART3.md §7 표대로 새 개념 카드가 있다', () => {
     const withCards = STAGES.filter((s) => s.concepts?.length).map((s) => STAGES.indexOf(s) + 1);
-    expect(withCards).toEqual([1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18]);
+    expect(withCards).toEqual([1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]);
     for (const s of STAGES)
       for (const c of s.concepts ?? []) {
         expect(c.text.length, `${s.id} ${c.name}`).toBeGreaterThanOrEqual(2);
@@ -35,10 +35,13 @@ describe('스테이지 목록', () => {
       }
   });
 
-  it('move(방향) 은 14단계부터, read/open_gate 는 11단계부터', () => {
+  it('move(방향) 은 14단계부터, read/open_gate 는 11단계부터, scan 19 · hire 23 · get_map 26 부터', () => {
     STAGES.forEach((s, i) => {
       expect(s.api.includes('move'), s.id).toBe(i + 1 >= 14);
       expect(s.api.includes('read'), s.id).toBe(i + 1 >= 11);
+      expect(s.api.includes('scan'), s.id).toBe(i + 1 >= 19);
+      expect(s.api.includes('hire'), s.id).toBe(i + 1 >= 23);
+      expect(s.api.includes('get_map'), s.id).toBe(i + 1 >= 26);
     });
   });
 });
@@ -84,6 +87,27 @@ describe.each(STAGES.map((s) => [s.id, s] as const))('%s', (_id, stage) => {
 
     it('정수 암호는 0·1·2 가 아니다 (0 부터 하나씩 넣어 보면 세 번째에 쓰러짐)', () => {
       for (const l of levelsOf(stage)) for (const g of l.gates) if (typeof g.code === 'number') expect(g.code).toBeGreaterThan(2);
+    });
+  }
+
+  if (stage.part === 3) {
+    it('3부: 몬스터 변이(종류 → 약점)·조수 걸음 수·지도가 시드마다 다르다', () => {
+      const ls = levelsOf(stage);
+      const facts = ls.map((l) =>
+        JSON.stringify({
+          weak: [...new Set(l.monsters.map((m) => `${m.kind}:${m.weak}`))].sort(),
+          hp: l.monsters.map((m) => m.hp),
+          signs: l.signs.map((s) => s.value),
+          terrain: l.terrain,
+        }),
+      );
+      expect(new Set(facts).size).toBe(ls.length);
+      // 변이 몬스터가 있으면, 맵 1 의 "종류 → 약점" 표가 다른 맵 중 적어도 하나에서 틀린다
+      const table = (l: Level) => new Map(l.monsters.map((m) => [m.kind, m.weak]));
+      if (ls[0].monsters.some((m) => m.weak)) {
+        const t0 = table(ls[0]);
+        expect(ls.slice(1).some((l) => l.monsters.some((m) => t0.has(m.kind) && t0.get(m.kind) !== m.weak))).toBe(true);
+      }
     });
   }
 

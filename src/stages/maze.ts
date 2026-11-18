@@ -91,3 +91,22 @@ export const OPPOSITE: Record<Dir, Dir> = { up: 'down', down: 'up', left: 'right
 
 /** 방향 목록을 move_* 명령 줄로 (하드코딩 우회 풀이 테스트용) */
 export const movesCode = (path: readonly string[]) => path.map((d) => `move_${d}()`).join('\n') + '\n';
+
+/**
+ * 고리가 있는 미로: 완전 미로를 만든 뒤 칸 사이 벽 extra 개를 더 허문다 (길이 여러 개 생김).
+ * 왼쪽 위 (1,1) 이 입구 S, 오른쪽 아래 칸이 출구 E.
+ */
+export function loopyMaze(rng: Rng, cw: number, ch: number, extra: number): string[] {
+  const g = mazeRows(rng, cw, ch);
+  // 허물 수 있는 벽: 가로·세로로 이웃한 두 칸 사이 (x+y 가 홀수인 안쪽 벽)
+  const walls: [number, number][] = [];
+  for (let y = 1; y < ch * 2; y++)
+    for (let x = 1; x < cw * 2; x++) if ((x + y) % 2 === 1 && g[y][x] === '#') walls.push([x, y]);
+  for (let i = 0; i < extra && walls.length > 0; i++) {
+    const [x, y] = walls.splice(rng.int(walls.length), 1)[0];
+    g[y][x] = '.';
+  }
+  g[1][1] = 'S';
+  g[ch * 2 - 1][cw * 2 - 1] = 'E';
+  return g.map((r) => r.join(''));
+}

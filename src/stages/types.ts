@@ -20,8 +20,8 @@ export interface Bypass {
 }
 
 export interface StageInfo extends StageDef {
-  /** 1부(스테이지 1~10) · 2부(11~18) */
-  part: 1 | 2;
+  /** 1부(스테이지 1~10) · 2부(11~18) · 3부(19~27) */
+  part: 1 | 2 | 3;
   /** 배우는 개념 (짧게) */
   concept: string;
   /** 이 스테이지에서 처음 나오는 개념 설명 카드 */
@@ -51,3 +51,9 @@ export const ALL_API = [...SENSE_API, 'get_hp', 'get_pos', 'get_coins', 'get_key
 export const GATE_API = [...ALL_API, 'read', 'open_gate'];
 /** 2부 14단계부터: move(방향) */
 export const PART2_API = [...GATE_API, 'move'];
+/** 3부 19단계부터: scan(방향) 으로 몬스터 객체 */
+export const OBJ_API = [...PART2_API, 'scan'];
+/** 3부 23단계부터: 조수 로봇 (클래스) */
+export const CLASS_API = [...OBJ_API, 'wait', 'get_bots', 'hire'];
+/** 3부 26단계부터: get_map() 2차원 리스트 */
+export const MAP_API = [...CLASS_API, 'get_map'];
