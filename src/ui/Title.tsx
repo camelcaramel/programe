@@ -13,9 +13,9 @@ import { PaiIcon } from './Guide';
 import { StarIcon } from './icons';
 
 const T = 16;
-/** 아다 선생님 (회색 머리) · 장식 타일 */
+/** 그레이스 선생님 (회색 머리) · 장식 타일 */
 const TEACHER = 100;
-const DECO = { banner: 29, statue: 7, gargoyle: 19, gargoyle2: 20, shelf: 63, barrel: 82, table: 72, grave: 65, broken: 42 } as const;
+const DECO = { banner: 29, statue: 7, gargoyle: 19, gargoyle2: 20, shelf: 63, barrel: 82, table: 72, grave: 65 } as const;
 
 // ---------------------------------------------------------------- 효과음
 
@@ -86,16 +86,10 @@ function DungeonCanvas({ cols, rows, walls, decorate }: { cols: number; rows: nu
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let alive = true;
-    const r = rand(cols * 31 + rows * 7);
     const cells: [number, number, number][] = [];
-    for (let y = 0; y < rows; y++)
-      for (let x = 0; x < cols; x++) {
-        if (y < walls) cells.push([TILE.wall, x, y]);
-        else {
-          const v = r();
-          cells.push([v < 0.97 ? TILE.floor : DECO.broken, x, y]); // 49~51 은 가장자리 그늘이 있어 흩뿌리면 줄무늬처럼 보인다
-        }
-      }
+    // 바닥은 기본 타일만. 바닥 변형(49~51)은 가장자리 그늘이 줄무늬처럼, 깨진 바닥(42)은 회색 조각이
+    // 화면이 깨진 것처럼 보여서 쓰지 않는다
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) cells.push([y < walls ? TILE.wall : TILE.floor, x, y]);
     decorate((n, x, y) => cells.push([n, x, y]));
     const need = [...new Set(cells.map((c) => c[0]))];
     void Promise.all(need.map(loadTile)).then((ims) => {
@@ -466,7 +460,7 @@ export function TitleScreen() {
 
 const PROLOGUE_LINES: { who: 'narr' | 'pai'; text: string; act?: 'walk' | 'gone' | 'pai' }[] = [
   { who: 'narr', text: '마법 학교 지하에는, 들어갈 때마다 모양이 바뀌는 "변덕의 던전"이 있다.' },
-  { who: 'narr', text: '던전의 심장을 고치러 내려간 아다 선생님은…', act: 'walk' },
+  { who: 'narr', text: '던전의 심장을 고치러 내려간 그레이스 선생님은…', act: 'walk' },
   { who: 'narr', text: '사흘이 지나도록 돌아오지 않았다.', act: 'gone' },
   { who: 'pai', text: '견습생! 여기야, 여기! 선생님 주문책 속! 난 주문책에 사는 정령, 파이야!', act: 'pai' },
   { who: 'pai', text: '던전 안에서는 입으로 외는 주문이 안 통해. 두루마리에 적은 주문만, 적힌 순서 그대로 발동하지.' },

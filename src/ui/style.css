@@ -793,8 +793,14 @@ button.concept:focus-visible { outline: 3px solid var(--gold); outline-offset: 2
 .gmenu-item.on .gmenu-label { color: var(--gold); }
 .gmenu-sub { grid-column: 2; font-family: inherit; font-size: 14px; color: #9d95bd; text-shadow: none; }
 @keyframes gmenu-blink { 50% { opacity: 0.2; } }
-.gtitle-keys { margin: 4px 0 0; font-size: 14px; color: #b9b2d6; text-shadow: 0 2px 0 #1a1426; }
-.gtitle-keys kbd { display: inline-block; min-width: 22px; padding: 1px 6px; margin: 0 1px; font: 700 12px var(--mono); color: #1a1426; background: #f4eeda; border: 2px solid #1a1426; border-radius: 4px; box-shadow: 0 2px 0 #1a1426; }
+.gtitle-keys {
+  display: inline-flex; gap: 6px; align-items: center; margin: 4px 0 0; padding: 5px 12px; font-size: 14px; line-height: 1; color: #d9d2f0;
+  background: rgba(22, 17, 34, 0.72); border-radius: 6px;
+}
+.gtitle-keys kbd {
+  display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; font: 400 14px/1 var(--display); color: #1a1426;
+  background: #f4eeda; border: 2px solid #1a1426; border-radius: 4px; box-shadow: 0 2px 0 #1a1426;
+}
 .gtitle-top { position: absolute; top: 14px; right: 16px; z-index: 3; display: flex; gap: 10px; }
 .gstars, .gmute {
   display: inline-flex; gap: 6px; align-items: center; padding: 5px 12px; font: 400 16px var(--display); color: #fff;
