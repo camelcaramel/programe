@@ -5,6 +5,7 @@ import { boardAt, initialBoard, type BoardState, type BotStep, type Level, type 
 import { currentTrace, gameStore, uiStore } from '../../state/store';
 import { FONT, makeDotTexture } from '../systems/effects';
 import { COLOR, NO_TINT, hex } from '../../ui/tokens';
+import { PORTAL } from '../pixelArt';
 
 const T = 16; // Tiny Dungeon 타일 크기
 
@@ -13,7 +14,7 @@ export const TILE = {
   floor: 48,
   floorAlt: [49, 50, 51],
   wall: 40,
-  exit: 32, // 초록 마법진 (잠긴 문과 헷갈리지 않게)
+  exit: 32, // 팩의 돌 분수 그림. 맵에서는 코드로 그린 마법진(PORTAL)을 쓴다
   door: 45,
   chest: 89,
   chestOpen: 91,
@@ -85,6 +86,7 @@ export class GridScene extends Phaser.Scene {
     makeStatueTexture(this);
     makeVaultTexture(this);
     makeCoinTexture(this);
+    pixelTexture(this, 'portal', PORTAL.rows, PORTAL.colors);
     this.cameras.main.setBackgroundColor(COLOR.dungeon);
     this.cameras.main.setRoundPixels(true);
     this.terrainLayer = this.add.container(0, 0);
@@ -138,7 +140,7 @@ export class GridScene extends Phaser.Scene {
     this.terrainLayer.setVisible(true);
 
     const showRun = (s.phase === 'replay' || s.phase === 'done') && !!s.result;
-    const view = showRun ? s.view : 0;
+    const view = s.view; // 계획 화면에서도 맵 탭으로 다른 맵을 볼 수 있다
     const level = s.levels[view];
     const key = `${s.stageId}|${view}|${showRun ? 'run' : 'plan'}|${resultId(s.result)}`;
     const trace = showRun ? currentTrace(s) : [];
@@ -183,17 +185,16 @@ export class GridScene extends Phaser.Scene {
         const h = (x * 73856093) ^ (y * 19349663);
         const alt = Math.abs(h) % 7 === 0 ? TILE.floorAlt[Math.abs(h) % TILE.floorAlt.length] : TILE.floor;
         this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', alt));
-        if (t === 'exit') this.terrainLayer.add(this.add.image(cx(x), cy(y), 'td', TILE.exit));
+        if (t === 'exit') this.terrainLayer.add(this.add.image(cx(x), cy(y), 'portal'));
         if (t === 'plate') this.terrainLayer.add(this.add.image(cx(x), cy(y), 'plate'));
-        if (t === 'pillar') this.drawPillar(level, { x, y });
+        if (t === 'pillar') this.drawPillar({ x, y });
       }),
     );
     this.fit();
   }
 
-  /** 하노이 기둥: 받침 + 막대 + 위에 이름(A·B·C) */
-  private drawPillar(level: Level, p: Pos) {
-    const k = (level.pillars ?? []).findIndex((q) => q.x === p.x && q.y === p.y);
+  /** 하노이 기둥: 받침 + 막대 (이름표는 addPillarLabel) */
+  private drawPillar(p: Pos) {
     const base = discBase(p);
     const g = this.add.graphics();
     g.fillStyle(0x353541).fillRect(cx(p.x) - 1.5, base - 19, 3, 19);
@@ -201,11 +202,26 @@ export class GridScene extends Phaser.Scene {
     g.fillStyle(0x353541).fillRect(cx(p.x) - 7.5, base - 1, 15, 3);
     g.fillStyle(0x8d8aa6).fillRect(cx(p.x) - 6.5, base - 0.5, 13, 1.5);
     this.terrainLayer.add(g);
+  }
+
+  /** 하노이 기둥 이름(A·B·C). 글자는 화면 크기에 맞추므로 drawObjects 때 그린다 */
+  private addPillarLabel(p: Pos, k: number) {
     const label = this.add
-      .text(cx(p.x), base - 23, 'ABC'[k] ?? '?', { fontFamily: FONT, fontSize: '48px', color: COLOR.goldLight, stroke: COLOR.ink, strokeThickness: 10 })
+      .text(cx(p.x), discBase(p) - 24, 'ABC'[k] ?? '?', { fontFamily: FONT, fontSize: '48px', color: COLOR.goldLight, stroke: COLOR.ink, strokeThickness: 10 })
       .setOrigin(0.5)
-      .setScale(0.16);
-    this.terrainLayer.add(label);
+      .setScale(this.textScale(this.cellPx(0.5, 16, 28)));
+    this.objLayer.add(label);
+    this.marks.push(label);
+  }
+
+  /** 화면에서 screenPx 크기로 보이게 하는 48px 글자의 배율 (맵 확대 배율과 상관없이 읽히게) */
+  private textScale(screenPx: number) {
+    return screenPx / 48 / this.cameras.main.zoom;
+  }
+
+  /** 칸 크기에 비례하되 너무 작거나 크지 않은 화면 글자 크기(px) */
+  private cellPx(frac: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, T * this.cameras.main.zoom * frac));
   }
 
   /** 움직이는 것들(상자·열쇠·문·몬스터·플레이어)을 board 상태 그대로 다시 그린다 */
@@ -236,6 +252,7 @@ export class GridScene extends Phaser.Scene {
     for (const p of board.plates) if (p.pressed) this.addThing(`pl:${keyOf(p)}`, p, 'platePressed');
     this.drawRow(board, plan);
     board.pegs.forEach((peg, k) => peg.forEach((size, h) => this.addDisc(k, h, size)));
+    this.level?.pillars?.forEach((p, k) => this.addPillarLabel(p, k));
     for (const t of board.tolls) if (!t.open) this.addToll(t);
     // 아직 읽지 않은 표지판·석판에는 ? 말풍선 (내용은 read() 로만 알 수 있다)
     if (this.level) for (const sg of this.level.signs) if (!board.read.includes(keyOf(sg))) this.addSignMark(sg);
@@ -249,6 +266,7 @@ export class GridScene extends Phaser.Scene {
       this.drawHp(m);
     }
     for (const b of board.bots) this.addBot(b);
+    if (this.level) this.level.terrain.forEach((row, y) => row.forEach((t, x) => t === 'exit' && this.addPortalFx({ x, y })));
     if (plan && this.level) for (const p of this.level.randomCells) this.addQuestion(p);
 
     this.player
@@ -286,16 +304,20 @@ export class GridScene extends Phaser.Scene {
     });
   }
 
-  /** 금고·석상 번호 표 (칸 오른쪽 아래, 0부터) */
+  /** 금고·석상 번호 표 (칸 오른쪽 아래에 걸쳐서, 0부터) */
   private addIndexTag(c: Pos, i: number) {
-    const x = cx(c.x) + 4.5;
-    const y = cy(c.y) + 5;
-    const w = i >= 10 ? 7.5 : 5.5;
-    const bg = this.add.rectangle(x, y, w, 5, 0x7fd8ff).setStrokeStyle(0.6, 0x353541);
+    const z = this.cameras.main.zoom;
+    const px = this.cellPx(0.36, 15, 22);
     const t = this.add
-      .text(x, y + 0.2, String(i), { fontFamily: FONT, fontSize: '40px', color: '#353541' })
+      .text(0, 0, String(i), { fontFamily: FONT, fontSize: '48px', color: '#353541' })
       .setOrigin(0.5)
-      .setScale(0.11);
+      .setScale(this.textScale(px));
+    const h = (px + 3) / z;
+    const w = Math.max(h, t.displayWidth + 5 / z);
+    const x = (c.x + 1) * T - w / 2 + 1;
+    const y = (c.y + 1) * T - h / 2 + 1;
+    const bg = this.add.rectangle(x, y, w, h, 0x7fd8ff).setStrokeStyle(1.5 / z, 0x353541);
+    t.setPosition(x, y + 0.5 / z);
     this.objLayer.add([bg, t]);
     this.marks.push(bg, t);
   }
@@ -305,13 +327,13 @@ export class GridScene extends Phaser.Scene {
     const c = this.board?.row?.cells[i] ?? this.level?.row?.cells[i];
     if (!c || this.vaultNums.has(i)) return;
     const t = this.add
-      .text(cx(c.x), cy(c.y) - 1.5, String(value), { fontFamily: FONT, fontSize: '48px', color: COLOR.goldLight, stroke: COLOR.ink, strokeThickness: 12 })
+      .text(cx(c.x), cy(c.y) - 2, String(value), { fontFamily: FONT, fontSize: '48px', color: COLOR.goldLight, stroke: COLOR.ink, strokeThickness: 12 })
       .setOrigin(0.5)
-      .setScale(0.15);
+      .setScale(this.textScale(this.cellPx(0.6, 20, 34)));
     this.objLayer.add(t);
     this.marks.push(t);
     this.vaultNums.add(i);
-    if (pop) this.tweens.add({ targets: t, scale: { from: 0.26, to: 0.15 }, duration: 220, ease: 'Back.easeOut' });
+    if (pop) this.tweens.add({ targets: t, scale: { from: t.scale * 1.7, to: t.scale }, duration: 220, ease: 'Back.easeOut' });
   }
 
   /** 하노이 원판: 기둥 k 의 아래에서 h 번째 */
@@ -339,6 +361,27 @@ export class GridScene extends Phaser.Scene {
     const lock = this.add.image(cx(p.x), cy(p.y) + 2, 'lock');
     this.objLayer.add(lock);
     this.things.set(`gl:${keyOf(p)}`, lock);
+  }
+
+  /** 출구 마법진이 숨 쉬듯 빛나고, 작은 빛 알갱이가 위로 피어오른다 (문·벽과 한눈에 구분되게) */
+  private addPortalFx(p: Pos) {
+    const glow = this.add.image(cx(p.x), cy(p.y), 'dot').setTint(PORTAL.colors.g).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.25).setScale(0.9);
+    this.objLayer.add(glow);
+    this.objLayer.sendToBack(glow);
+    this.marks.push(glow);
+    this.tweens.add({ targets: glow, alpha: 0.55, scale: 1.1, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    const motes = this.add.particles(cx(p.x), cy(p.y) + 3, 'dot', {
+      x: { min: -5, max: 5 },
+      speedY: { min: -14, max: -8 },
+      lifespan: 1100,
+      frequency: 260,
+      scale: { start: 0.1, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      tint: 0xb6f5cf,
+      blendMode: 'ADD',
+    });
+    this.objLayer.add(motes);
+    this.marks.push(motes);
   }
 
   /** 표지판·석판 위의 작은 ? 말풍선. 읽으면 지우도록 칸 좌표로 기억한다 */
@@ -392,7 +435,7 @@ export class GridScene extends Phaser.Scene {
   private bubble(cell: Pos, text: string, color: string, fill: number, pop: boolean) {
     const cam = this.cameras.main;
     const z = cam.zoom;
-    const s = 15 / 48 / z; // 화면에서 약 15px 글자
+    const s = 18 / 48 / z; // 화면에서 약 18px 글자
     const label = this.add
       .text(0, 0, text, { fontFamily: FONT, fontSize: '48px', color, align: 'left', lineSpacing: 6 })
       .setOrigin(0.5, 0)
@@ -427,11 +470,13 @@ export class GridScene extends Phaser.Scene {
   /** 로봇: 몸(갑옷 인형) + 머리 위 번호 표. 고장 나면 잿빛 */
   private addBot(b: BoardState['bots'][number]) {
     const body = this.add.sprite(0, 0, 'td', TILE.bot).setFlipX(b.facing === 'left');
-    const tag = this.add.circle(5, -6, 3.2, 0x7fd8ff).setStrokeStyle(0.75, 0x353541);
+    const z = this.cameras.main.zoom;
+    const px = this.cellPx(0.34, 14, 21);
+    const tag = this.add.circle(5, -6, Math.max(3.2, (px * 0.72) / z), 0x7fd8ff).setStrokeStyle(1.5 / z, 0x353541);
     const num = this.add
-      .text(5, -5.8, String(b.id), { fontFamily: FONT, fontSize: '40px', color: '#353541' })
+      .text(5, -6 + 0.5 / z, String(b.id), { fontFamily: FONT, fontSize: '48px', color: '#353541' })
       .setOrigin(0.5)
-      .setScale(0.13);
+      .setScale(this.textScale(px));
     const box = this.add.container(cx(b.x), cy(b.y), [body, tag, num]);
     if (b.broken) this.breakBot(box);
     this.objLayer.add(box);
@@ -830,7 +875,7 @@ export class GridScene extends Phaser.Scene {
     const t = this.add
       .text(x, y, text, { fontFamily: FONT, fontSize: '48px', color, stroke: COLOR.ink, strokeThickness: 10 })
       .setOrigin(0.5)
-      .setScale((screenPx * 3.2) / 48 / z)
+      .setScale((screenPx * 4) / 48 / z)
       .setDepth(50);
     this.fxLayer.add(t);
     this.tweens.add({ targets: t, y: y - 10, alpha: { from: 1, to: 0 }, duration: 900, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
@@ -898,7 +943,7 @@ export class GridScene extends Phaser.Scene {
       this.add
         .text(x, y, text, { fontFamily: FONT, fontSize: '48px', color: COLOR.lavender, stroke: COLOR.dungeon, strokeThickness: 8 })
         .setOrigin(0.5)
-        .setScale(16 / 48 / z);
+        .setScale(this.textScale(this.cellPx(0.42, 15, 20)));
     for (let x = 0; x < width; x++) this.guideLayer.add(label(cx(x), -T / 2, String(x)));
     for (let y = 0; y < height; y++) this.guideLayer.add(label(-T / 2, cy(y), String(y)));
     this.guideLayer.add(label(-T / 2, -T / 2, 'y\\x').setColor(COLOR.dusk));
@@ -910,7 +955,7 @@ let activeScene: GridScene | null = null;
 /** 화면(브라우저 좌표)에서 맵이 차지하는 사각형 (좌표 번호 줄 포함). 튜토리얼이 맵을 강조할 때 쓴다 */
 export function mapScreenRect(): { left: number; top: number; width: number; height: number } | null {
   const sc = activeScene;
-  const level = gameStore.get().levels[0];
+  const level = gameStore.get().levels[gameStore.get().view];
   if (!sc || !level || !sc.sys.isActive()) return null;
   const cam = sc.cameras.main;
   const box = sc.game.canvas.getBoundingClientRect();

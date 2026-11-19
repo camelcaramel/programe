@@ -8,6 +8,7 @@ import {
   goSelect,
   nextStageId,
   openStage,
+  previewMap,
   seek,
   setSpeed,
   skipToEnd,
@@ -24,7 +25,7 @@ import { TILE } from '../game/scenes/GridScene';
 function useBoard() {
   return useStore(gameStore, (s) => {
     const showRun = (s.phase === 'replay' || s.phase === 'done') && !!s.result;
-    const level = s.levels[showRun ? s.view : 0];
+    const level = s.levels[s.view];
     if (!level) return null;
     const b = showRun ? boardAt(level, currentTrace(s), s.step) : initialBoard(level);
     // useSyncExternalStore 가 매번 새 객체로 착각하지 않도록 원시값 문자열로
@@ -154,6 +155,7 @@ export function Dock() {
   const phase = useStore(gameStore, (s) => s.phase);
   const stageId = useStore(gameStore, (s) => s.stageId);
   const nMaps = useStore(gameStore, (s) => s.levels.length);
+  const view = useStore(gameStore, (s) => s.view);
   const panelOpen = useStore(uiStore, (s) => s.panelOpen);
   const syntaxOnly = useStore(gameStore, (s) => !!s.result && s.result.runs.every((r) => r.kind === 'syntax'));
 
@@ -162,10 +164,19 @@ export function Dock() {
     return (
       <div className="dock">
         <div className="dock-row">
+          {nMaps > 1 && (
+            <div className="seed-tabs" role="group" aria-label="살펴볼 맵">
+              {Array.from({ length: nMaps }, (_, i) => (
+                <button key={i} className={`seed-tab ${i === view ? 'active' : ''}`} aria-pressed={i === view} onClick={() => previewMap(i)} title={`맵 ${i + 1} 살펴보기`}>
+                  맵 {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
           <p className="plan-note">
             {nMaps > 1 ? (
               <>
-                <b>맵 {nMaps}개</b>를 같은 코드로 모두 통과해야 해요. {stage.note}
+                <b>맵 {nMaps}개</b>를 같은 코드로 모두 통과해야 해요. 맵은 <b>실행할 때마다 새로</b> 뽑혀요. {stage.note}
               </>
             ) : panelOpen ? (
               <>맵을 살펴보고, 오른쪽에 코드를 적은 뒤 <b>▶ 실행</b>을 누르세요.</>

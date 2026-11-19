@@ -402,7 +402,7 @@ kbd {
   font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--white); white-space: nowrap;
   background: var(--ink-glass); border: var(--border-base) solid var(--ink); border-radius: var(--radius-pill);
 }
-.pill small { font-size: 14px; font-weight: 600; color: var(--lavender); }
+.pill small { font-size: 16px; font-weight: 600; color: var(--lavender); }
 .pill img { width: 26px; height: 26px; }
 .pill.hearts { gap: 2px; padding: 0 10px; }
 .heart-icon { width: 26px; height: 26px; }

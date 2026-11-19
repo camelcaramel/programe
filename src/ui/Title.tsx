@@ -9,6 +9,7 @@ import { STAGES, getStage, stageNo } from '../stages';
 import { markPrologueSeen, prologueSeen, replayTutorial } from '../state/guide';
 import { TILE } from '../game/scenes/GridScene';
 import { tileImg } from './SidePanel';
+import { PORTAL, pixelArtUrl } from '../game/pixelArt';
 import { PaiIcon } from './Guide';
 import { StarIcon } from './icons';
 
@@ -154,7 +155,7 @@ function CodeLane({ y, cols }: { y: number; cols: number }) {
   const jump = i === steps.length - 1; // 처음 자리로 되돌아갈 때는 순간 이동
   return (
     <>
-      <img src={sprite(TILE.exit)} alt="" className="dio-a portal" style={at(portal, y)} />
+      <img src={pixelArtUrl(PORTAL)} alt="" className="dio-a portal" style={at(portal, y)} />
       {st.slime ? (
         <img src={sprite(TILE.slime)} alt="" className="dio-a squish" style={at(slime, y)} />
       ) : (

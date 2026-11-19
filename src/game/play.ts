@@ -1,8 +1,9 @@
 // 스테이지 진행: 열기 → 코드 실행 → 실행 기록 재생 → 결과. 화면(React)과 GridScene(Phaser)은 gameStore 만 본다.
-import { buildLevel, type EndReason } from '../sim';
+import type { EndReason } from '../sim';
 import { python } from '../python/runner';
 import { STAGES, getStage, stageIndex } from '../stages';
 import { scoreRun } from '../stages/score';
+import { pickLevels, rollLevels } from '../stages/seeds';
 import { codeFor, recordStars } from '../state/codeStore';
 import { closeGuide, closeLine, onStageCleared, onStageOpen } from '../state/guide';
 import { clearLog, currentTrace, gameStore, log, toast, uiStore, type Speed } from '../state/store';
@@ -31,6 +32,12 @@ const stopTimer = () => {
  */
 let chainAll = false;
 
+/**
+ * 지금 맵들로 이미 실행했는가. 실행 결과(표지판 값, ? 칸 …)를 본 맵으로 다시 실행하면 그 값을 코드에 적어 넣어도
+ * 통과하므로, 다음 실행 때 맵을 새로 뽑는다. 그 전까지는 지난 실행의 맵을 그대로 보여 줘서 실패한 장면을 보며 고칠 수 있다.
+ */
+let levelsUsed = false;
+
 export function goTitle() {
   stopTimer();
   closeGuide();
@@ -51,7 +58,7 @@ export function openStage(stageId: string) {
     screen: 'play',
     stageId,
     phase: 'plan',
-    levels: stage.seeds.map((seed) => buildLevel(stage, seed)),
+    levels: rollLevels(stage),
     result: null,
     score: null,
     newRecord: false,
@@ -59,6 +66,7 @@ export function openStage(stageId: string) {
     step: 0,
     playing: false,
   });
+  levelsUsed = false;
   uiStore.set({ codeError: null, tab: 'code', panelOpen: true });
   clearLog(); // 스테이지 설명은 코드 창 위쪽에 늘 보이므로 실행 결과 칸은 비워 둔다
   onStageOpen(stageId);
@@ -80,17 +88,24 @@ export async function runCode() {
   stopTimer();
   const stage = getStage(s.stageId);
   const code = codeFor(s.stageId);
-  gameStore.set({ phase: 'running', playing: false, step: 0, result: null, score: null, newRecord: false });
+  gameStore.set({ phase: 'running', view: 0, playing: false, step: 0, result: null, score: null, newRecord: false });
   closeLine();
   uiStore.set({ codeError: null });
+  const left = () => gameStore.get().stageId !== s.stageId || gameStore.get().screen !== 'play'; // 그 사이 화면을 나갔는가
 
-  const result = await python.runStage(code, s.levels, stage.api);
-  if (gameStore.get().stageId !== s.stageId || gameStore.get().screen !== 'play') return; // 그 사이 화면을 나갔으면 버림
+  // 이미 실행해 본 맵이면 새로 뽑는다. 하드코딩·우회 풀이가 통하는 묶음은 버린다
+  const levels = await pickLevels(stage, levelsUsed ? null : s.levels, (c, ls) => python.runStage(c, ls, stage.api));
+  levelsUsed = false;
+  if (left()) return;
+  gameStore.set({ levels });
+
+  const result = await python.runStage(code, levels, stage.api);
+  if (left()) return;
 
   const score = scoreRun(stage, result, code);
   const failIdx = result.runs.findIndex((r) => !r.summary.cleared);
 
-  // 문법 오류면 실행 자체가 안 됐으니 재생 없이 바로 오류 표시
+  // 문법 오류면 실행 자체가 안 됐으니(맵의 값도 드러나지 않았으니) 재생 없이 바로 오류 표시
   if (result.runs.every((r) => r.kind === 'syntax')) {
     const r = result.runs[0];
     log('error', (r.line ? `${r.line}번째 줄 · ` : '') + r.error, '문법');
@@ -99,6 +114,7 @@ export async function runCode() {
     return;
   }
 
+  levelsUsed = true;
   // 콘솔: 맵별 결과와 print 출력 (같은 오류가 맵마다 반복되면 짧게)
   log('info', `실행! 맵 ${result.runs.length}개에 같은 코드를 돌려요.`, '실행');
   let lastErr = '';
@@ -221,9 +237,16 @@ export function viewSeed(i: number) {
   schedule();
 }
 
-/** 결과를 닫고 다시 코드를 고치는 단계로 */
+/** 코드를 쓰는 중에 다른 맵 살펴보기 */
+export function previewMap(i: number) {
+  const s = gameStore.get();
+  if (s.phase !== 'plan' || i < 0 || i >= s.levels.length) return;
+  gameStore.set({ view: i });
+}
+
+/** 결과를 닫고 다시 코드를 고치는 단계로 (보던 맵은 그대로, 처음 모습으로) */
 export function backToPlan() {
   stopTimer();
   chainAll = false;
-  gameStore.set({ phase: 'plan', playing: false, step: 0, view: 0 });
+  gameStore.set({ phase: 'plan', playing: false, step: 0 });
 }

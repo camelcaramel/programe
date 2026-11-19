@@ -1,11 +1,12 @@
 // 모든 스테이지가 "의도한 풀이로 풀리고, 하드코딩으로는 막히는지" 실제 Pyodide 로 확인한다.
 import { loadPyodide } from 'pyodide';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { buildLevel, type Level } from '../sim';
+import { buildLevel, createRng, type Level } from '../sim';
 import PRELUDE from '../python/prelude.py?raw';
 import { runStageWith, type PyRunStage } from '../python/stageBridge';
 import { STAGES, countCodeLines, type StageInfo } from './index';
 import { scoreRun } from './score';
+import { pickLevels, seedSetProblems, varies } from './seeds';
 
 let pyRunStage: PyRunStage;
 beforeAll(async () => {
@@ -14,6 +15,8 @@ beforeAll(async () => {
   pyRunStage = py.globals.get('_run_stage') as PyRunStage;
 }, 60_000);
 
+/** 스테이지마다 새로 뽑아 볼 맵 묶음 수 */
+const ROLLS = 8;
 const levelsOf = (s: StageInfo) => s.seeds.map((seed) => buildLevel(s, seed));
 const run = (s: StageInfo, code: string) => runStageWith(pyRunStage, code, levelsOf(s), { time_limit: 1, api: s.api });
 
@@ -138,6 +141,31 @@ describe.each(STAGES.map((s) => [s.id, s] as const))('%s', (_id, stage) => {
       expect(new Set(facts).size).toBe(ls.length);
       for (const l of ls) for (const g of l.gates) if (typeof g.code === 'number') expect(g.code).toBeGreaterThan(2);
     });
+  }
+
+  if (varies(stage)) {
+    // 게임에서는 실행할 때마다 시드를 새로 뽑는다. 뽑힌 맵에서도 같은 약속이 지켜지는지 여러 번 뽑아 본다
+    it('기준 시드가 새로 뽑기 조건을 지킨다', () => {
+      expect(seedSetProblems(stage, levelsOf(stage))).toEqual([]);
+    });
+
+    it(`새로 뽑은 맵 ${ROLLS}묶음: 기준 시드와 다르고 조건을 지키며, 정답은 통과·하드코딩과 우회는 실패`, async () => {
+      const rng = createRng(STAGES.indexOf(stage) + 1000);
+      const go = (code: string, ls: Level[]) => runStageWith(pyRunStage, code, ls, { time_limit: 1, api: stage.api });
+      const base = JSON.stringify(levelsOf(stage).map((l) => l.seed));
+      let fresh = 0;
+      for (let k = 0; k < ROLLS; k++) {
+        const ls = await pickLevels(stage, null, async (code, l) => go(code, l), rng.next);
+        const tag = `seeds ${ls.map((l) => l.seed).join(',')}`;
+        if (JSON.stringify(ls.map((l) => l.seed)) !== base) fresh++;
+        expect(seedSetProblems(stage, ls), tag).toEqual([]);
+        for (const x of go(stage.solution, ls).runs) expect(x.summary.reason, `${tag} seed ${x.seed}: ${x.error}`).toBe('exit');
+        if (stage.hardcoded) expect(go(stage.hardcoded, ls).ok, `${tag} 하드코딩`).toBe(false);
+        for (const b of stage.bypasses ?? []) expect(go(typeof b.code === 'function' ? b.code(ls) : b.code, ls).ok, `${tag} 우회: ${b.name}`).toBe(false);
+      }
+      // 거의 언제나 새 시드가 뽑혀야 한다 (기준 시드로 물러나는 일은 드물게만)
+      expect(fresh).toBeGreaterThanOrEqual(ROLLS - 1);
+    }, 120_000);
   }
 
   for (const b of stage.bypasses ?? []) {
