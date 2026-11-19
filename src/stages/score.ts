@@ -35,11 +35,20 @@ export function scoreRun(stage: StageInfo, result: StageRunResult, code: string)
   return { cleared, stars: checks.filter((c) => c.ok).length, checks, lines };
 }
 
-/** 계획 화면에 보여 줄 별 조건 */
-export function starRules(stage: StageInfo, hasChests: boolean): string[] {
-  return [
-    '맵 모두 통과',
-    hasChests ? '보물상자 모두 열기' : '보물상자 없음 (클리어하면 받아요)',
-    stage.stars?.lines ? `코드 ${stage.stars.lines}줄 이하 (빈 줄·주석 제외)` : '줄 수 제한 없음 (클리어하면 받아요)',
-  ];
+export interface StarRule {
+  /** 이 조건으로 받는 별 수 */
+  stars: number;
+  label: string;
+  /** 마우스를 올리면 보이는 덧붙임 */
+  title?: string;
+}
+
+/** 계획 화면에 보여 줄 별 조건. 클리어만 하면 받는 보너스 별은 "맵 모두 통과" 에 합쳐 글자를 줄인다 */
+export function starRules(stage: StageInfo, hasChests: boolean): StarRule[] {
+  const rules: StarRule[] = [{ stars: 1, label: '맵 모두 통과' }];
+  if (hasChests) rules.push({ stars: 1, label: '상자 모두 열기' });
+  else rules[0].stars++;
+  if (stage.stars?.lines) rules.push({ stars: 1, label: `${stage.stars.lines}줄 이하`, title: '빈 줄과 주석(#)은 세지 않아요' });
+  else rules[0].stars++;
+  return rules;
 }

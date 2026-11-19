@@ -9,8 +9,6 @@ import { starRules } from '../stages/score';
 import { API_DOCS } from './apiDocs';
 import { learnedConcepts, replayTutorial, showConcept } from '../state/guide';
 import { BookIcon, StarIcon } from './icons';
-import { PaiIcon } from './Guide';
-import { STAGE_STORY } from '../stages/story';
 import { TILE } from '../game/scenes/GridScene';
 
 export const tileImg = (n: number) => `${import.meta.env.BASE_URL}assets/kenney/topdown/Tiles/tile_${String(n).padStart(4, '0')}.png`;
@@ -158,25 +156,25 @@ function CodeTab() {
           ) : (
             <span className="concept">{stage.concept}</span>
           )}
+        </div>
+        <p className="brief-goal">{stage.goal}</p>
+        <div className="brief-foot">
+          <ul className="brief-stars" aria-label="별을 받는 조건">
+            {starRules(stage, hasChests).map((r) => (
+              <li key={r.label} title={r.title}>
+                <span className="stars" aria-label={`별 ${r.stars}개`}>
+                  {Array.from({ length: r.stars }, (_, i) => (
+                    <StarIcon key={i} on />
+                  ))}
+                </span>
+                {r.label}
+              </li>
+            ))}
+          </ul>
           <button className="btn ghost small hint-btn" aria-expanded={hint} onClick={() => setHint(!hint)}>
             {hint ? '힌트 접기' : '힌트 보기'}
           </button>
         </div>
-        {STAGE_STORY[stageId] && (
-          <p className="brief-story">
-            <PaiIcon size={20} />
-            <span>{STAGE_STORY[stageId]}</span>
-          </p>
-        )}
-        <p className="brief-goal">{stage.goal}</p>
-        <ul className="brief-stars" aria-label="별을 받는 조건">
-          {starRules(stage, hasChests).map((r) => (
-            <li key={r}>
-              <StarIcon on />
-              {r}
-            </li>
-          ))}
-        </ul>
         {hint && (
           <div className="brief-hint">
             <b>힌트</b> {stage.hint}
@@ -187,10 +185,12 @@ function CodeTab() {
       <div className="slate editor-wrap">
         <div className="slate-head">
           <span>
-            내 코드 ·{' '}
-            <span className={limit && lines > limit ? 'over' : ''}>
-              {lines}줄{limit ? ` / 별 조건 ${limit}줄 이하` : ''}
-            </span>
+            내 코드
+            {limit ? (
+              <span className={lines > limit ? 'line-count over' : 'line-count'} title="빈 줄과 주석(#)은 세지 않아요">
+                {lines} / {limit}줄
+              </span>
+            ) : null}
           </span>
           <span className="slate-tools">
             <EngineStatus status={status} />
@@ -259,7 +259,6 @@ function Console() {
           <span aria-hidden>{open ? '▾' : '▸'}</span> 실행 결과
           {lines.length > 0 && <span className="console-count">{lines.length}줄</span>}
           {!open && errors > 0 && <span className="console-count bad">오류 {errors}</span>}
-          {lines.length === 0 && <span className="console-empty">print() 출력과 오류가 여기에 나와요</span>}
         </button>
         {open && lines.length > 0 && (
           <button className="link" onClick={clearLog}>
