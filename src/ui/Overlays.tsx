@@ -86,7 +86,7 @@ function TitleScreen() {
 const PARTS: { part: StageInfo['part']; title: string; sub: string }[] = [
   { part: 1, title: '1부 · 첫 주문들', sub: '순서 · for · if · while · 함수' },
   { part: 2, title: '2부 · 기억과 목록', sub: '변수 · 자료형 · 리스트 · return' },
-  { part: 3, title: '3부 · 객체와 조수들', sub: '객체 · 딕셔너리 · 클래스 · 2차원 리스트 · 탐색' },
+  { part: 3, title: '3부 · 객체와 로봇들', sub: '객체 · 딕셔너리 · 클래스 · 2차원 리스트 · 탐색' },
   { part: 4, title: '4부 · 알고리즘의 탑', sub: '순차·이진 탐색 · 최댓값 · 선택·버블·삽입 정렬 · 도전: 재귀 · 탐욕 · DFS' },
 ];
 

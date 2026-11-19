@@ -1,4 +1,4 @@
-// 3부 요소: 변이 몬스터·미믹·scan·반격, 조수 로봇 라운드·발판·창살, get_map
+// 3부 요소: 변이 몬스터·미믹·scan·반격, 로봇 라운드·발판·창살, get_map
 import { describe, expect, it } from 'vitest';
 import { SimInputError, SimStop, World, boardAt, buildLevel, simulate, type MonsterMutation, type StageDef } from './index';
 
@@ -12,7 +12,7 @@ const def = (map: string[], muts: (MonsterMutation | null)[] = [], extra: Partia
 });
 const lv = (map: string[], muts: (MonsterMutation | null)[] = [], extra: Partial<StageDef> = {}) => buildLevel(def(map, muts, extra), 1);
 
-/** 조수 라운드를 직접 돌린다 (파이썬의 _after_turn 과 같은 순서) */
+/** 로봇 라운드를 직접 돌린다 (파이썬의 _after_turn 과 같은 순서) */
 function turn(w: World, action: () => void, bots: (() => void)[] = []) {
   action();
   w.roundBegin();
@@ -85,7 +85,7 @@ describe('변이 몬스터', () => {
   });
 });
 
-describe('조수 로봇 · 발판 · 창살', () => {
+describe('로봇 · 발판 · 창살', () => {
   const MAP = ['#####', '#RP.#', '#####', 'S==.E'];
 
   it('발판이 눌려 있는 동안만 창살이 열리고, 서 있는 칸은 닫히지 않는다', () => {

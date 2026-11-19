@@ -28,7 +28,7 @@ export const TILE = {
   spider: 122,
   crab: 110,
   mimic: 92, // 정체가 드러나기 전에는 chest(89) 로 그린다
-  bot: 96, // 조수 로봇 (갑옷 인형) + 번호 표
+  bot: 96, // 로봇 (갑옷 인형) + 번호 표
 } as const;
 
 const SFX = ['bump', 'coin', 'disappear', 'gem', 'hurt', 'jump-high', 'magic', 'select'] as const;
@@ -53,7 +53,7 @@ export class GridScene extends Phaser.Scene {
   /** 표지판 칸("x,y") → 그 위의 ? 표시 (읽으면 지운다) */
   private signMarks = new Map<string, Phaser.GameObjects.GameObject[]>();
   private bubbles: Phaser.GameObjects.Container[] = [];
-  /** 조수 로봇 (몸 + 번호 표) */
+  /** 로봇 (몸 + 번호 표) */
   private botViews = new Map<number, Phaser.GameObjects.Container>();
   /** 하노이 원판 (크기 → 막대) */
   private discs = new Map<number, Phaser.GameObjects.Rectangle>();
@@ -418,7 +418,7 @@ export class GridScene extends Phaser.Scene {
     }
   }
 
-  /** 조수 로봇: 몸(갑옷 인형) + 머리 위 번호 표. 고장 나면 잿빛 */
+  /** 로봇: 몸(갑옷 인형) + 머리 위 번호 표. 고장 나면 잿빛 */
   private addBot(b: BoardState['bots'][number]) {
     const body = this.add.sprite(0, 0, 'td', TILE.bot).setFlipX(b.facing === 'left');
     const tag = this.add.circle(5, -6, 3.2, 0x7fd8ff).setStrokeStyle(0.75, 0x353541);
@@ -486,7 +486,7 @@ export class GridScene extends Phaser.Scene {
     const tx = cx(step.target.x);
     const ty = cy(step.target.y);
     const tk = keyOf(step.target);
-    // 조수 로봇들은 마법사와 같은 턴에 함께 움직인다 (창살·발판도 그 뒤에 맞춘다)
+    // 로봇들은 마법사와 같은 턴에 함께 움직인다 (창살·발판도 그 뒤에 맞춘다)
     if (step.bots || step.barsOpen) this.animateRound(step, d);
 
     switch (step.event) {
@@ -697,7 +697,7 @@ export class GridScene extends Phaser.Scene {
     return true;
   }
 
-  /** 한 턴 동안 조수 로봇들이 한 일 + 창살·발판 맞추기 (마법사 연출과 동시에) */
+  /** 한 턴 동안 로봇들이 한 일 + 창살·발판 맞추기 (마법사 연출과 동시에) */
   private animateRound(step: TraceStep, d: number) {
     for (const b of step.bots ?? []) this.animateBot(b, d);
     const board = this.board;
@@ -755,7 +755,7 @@ export class GridScene extends Phaser.Scene {
       });
   }
 
-  /** from(마법사나 조수)에서 대상 칸으로 마법 구슬 */
+  /** from(마법사나 로봇)에서 대상 칸으로 마법 구슬 */
   private cast(
     from: { x: number; y: number },
     step: Pick<TraceStep, 'skill' | 'event' | 'amount'>,

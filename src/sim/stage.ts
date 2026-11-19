@@ -5,7 +5,7 @@
 //   s  슬라임    b  박쥐     g  외눈 거인
 //   T  표지판    M  석판     G  비밀 문   (2부. 내용·암호는 StageDef.content 가 시드로 만든다)
 //   o  유령      x  거미     q  게        m  미믹(상자인 척)   (3부 변이 몬스터. HP·약점은 content 가 정한다)
-//   R  조수 로봇  P  발판     =  창살      (3부)
+//   R  로봇  P  발판     =  창살      (3부)
 //   V  금고      W  석상     H  하노이 기둥  $  요금 문   (4부. 숫자·무게·원판 수·통행료는 content 가 정한다)
 //   그 밖의 문자는 StageDef.random 에 후보를 적어 랜덤 칸으로 쓴다 (보통 '?')
 import { StageError } from './errors';

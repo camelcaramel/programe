@@ -313,7 +313,7 @@ move_right()
 
   const BOT_MAP = ['#####', '#RP.#', '#####', 'S==.E'];
   const HELPER = strip(`
-class Helper:
+class Robot:
     def __init__(self, bot):
         self.bot = bot
         self.left = 1
@@ -323,7 +323,7 @@ class Helper:
             self.bot.move("right")
             self.left = self.left - 1
 
-hire(Helper(get_bots()[0]))
+hire(Robot(get_bots()[0]))
 while look("right") != "exit":
     if look("right") == "bars":
         wait()
@@ -332,7 +332,7 @@ while look("right") != "exit":
 move_right()
 `);
 
-  it('클래스로 만든 조수를 hire 하면 마법사가 턴을 쓸 때마다 act() 가 불린다', () => {
+  it('클래스로 만든 로봇을 hire 하면 마법사가 턴을 쓸 때마다 act() 가 불린다', () => {
     const r = run(HELPER, p3(BOT_MAP));
     expect(r.runs[0].error).toBeNull();
     expect(r.ok).toBe(true);

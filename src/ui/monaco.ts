@@ -55,17 +55,17 @@ const LOOK_VALUES = [
   'vault', 'statue', 'pillar', 'toll',
   ...MONSTER_KINDS.filter((k) => k !== 'mimic'),
 ];
-/** 점(.) 뒤 자동완성: 몬스터 객체 속성과 조수 로봇 메서드 */
+/** 점(.) 뒤 자동완성: 몬스터 객체 속성과 로봇 메서드 */
 const MEMBERS = [
   { label: 'weak', doc: '몬스터의 약점 마법 이름 (예: "lightning")', snippet: 'weak' },
   { label: 'hp', doc: '몬스터의 지금 HP', snippet: 'hp' },
   { label: 'max_hp', doc: '몬스터의 처음 HP', snippet: 'max_hp' },
   { label: 'kind', doc: '몬스터 종류 (예: "ghost")', snippet: 'kind' },
-  { label: 'move', doc: '조수 로봇: 한 칸 이동 (act() 안에서, 한 턴에 하나)', snippet: 'move("${1|right,left,up,down|}")' },
-  { label: 'cast', doc: '조수 로봇: 마법 (act() 안에서, 한 턴에 하나)', snippet: 'cast(${1:m.weak}, "${2|right,left,up,down|}")' },
-  { label: 'look', doc: '조수 로봇: 옆 칸 살펴보기', snippet: 'look("${1|right,left,up,down|}")' },
-  { label: 'read', doc: '조수 로봇: 옆 칸 표지판 읽기', snippet: 'read("${1|up,down,left,right|}")' },
-  { label: 'scan', doc: '조수 로봇: 옆 칸 몬스터 객체', snippet: 'scan("${1|right,left,up,down|}")' },
+  { label: 'move', doc: '로봇: 한 칸 이동 (act() 안에서, 한 턴에 하나)', snippet: 'move("${1|right,left,up,down|}")' },
+  { label: 'cast', doc: '로봇: 마법 (act() 안에서, 한 턴에 하나)', snippet: 'cast(${1:m.weak}, "${2|right,left,up,down|}")' },
+  { label: 'look', doc: '로봇: 옆 칸 살펴보기', snippet: 'look("${1|right,left,up,down|}")' },
+  { label: 'read', doc: '로봇: 옆 칸 표지판 읽기', snippet: 'read("${1|up,down,left,right|}")' },
+  { label: 'scan', doc: '로봇: 옆 칸 몬스터 객체', snippet: 'scan("${1|right,left,up,down|}")' },
 ];
 
 monaco.languages.registerCompletionItemProvider('python', {

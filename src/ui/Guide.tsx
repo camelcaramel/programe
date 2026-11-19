@@ -32,14 +32,14 @@ function Part3Intro() {
   return (
     <div className="guide-modal" role="dialog" aria-modal="true" aria-label="3부 안내">
       <div className="concept-card">
-        <div className="concept-ribbon">3부 · 객체와 조수들</div>
+        <div className="concept-ribbon">3부 · 객체와 로봇들</div>
         <h2 className="concept-name">고등 과정에 온 걸 환영해요!</h2>
         <ul className="concept-text">
           <li>
             몬스터가 <b>변이</b>해서 약점이 실행마다 바뀌어요. <code>scan()</code> 이 돌려주는 <b>객체</b>의 속성(<code>m.weak</code>)을 읽어야 해요.
           </li>
           <li>
-            <b>클래스</b>로 조수 로봇을 만들어 <code>hire()</code> 로 고용하면, 내가 한 턴을 쓸 때마다 조수들이 함께 움직여요.
+            <b>클래스</b>로 로봇을 만들어 <code>hire()</code> 로 고용하면, 내가 한 턴을 쓸 때마다 로봇들이 함께 움직여요.
           </li>
           <li>
             <code>get_map()</code> 으로 맵 전체를 <b>2차원 리스트</b>로 받아 가장 짧은 길을 <b>탐색</b>해요.

@@ -271,7 +271,7 @@ function gateTip(result: NonNullable<ReturnType<typeof gameStore.get>['result']>
   if (steps.some((t) => t.event === 'gate_wrong')) return '비밀 문에 틀린 암호를 넣었어요(경보, HP −1). print() 로 넣으려는 값을 먼저 확인해 보세요.';
   // 3부
   if (steps.some((t) => t.counter)) return '약점이 아닌 마법을 써서 반격을 받았어요! 몬스터의 약점은 맵마다 바뀌니 scan() 으로 m.weak 를 읽어 보세요.';
-  if (steps.some((t) => t.bots?.some((b) => b.broken))) return '조수 로봇이 약점이 아닌 마법을 써서 고장 났어요. self.bot.scan(방향).weak 로 약점을 읽어 보세요.';
+  if (steps.some((t) => t.bots?.some((b) => b.broken))) return '로봇이 약점이 아닌 마법을 써서 고장 났어요. self.bot.scan(방향).weak 로 약점을 읽어 보세요.';
   if (steps.some((t) => t.event === 'hit' && t.amount === 3)) return '미믹에 물렸어요! look() 은 미믹도 "chest" 라고 해요. scan() 이 None 이 아니면 미믹이에요.';
   // 4부
   if (steps.some((t) => t.event === 'pay_over')) return '통행료보다 많이 냈어요(경보!). 큰 동전부터 내되, 남은 금액보다 큰 동전은 건너뛰어요.';

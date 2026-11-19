@@ -19,11 +19,11 @@ export interface BoardState {
   gates: { x: number; y: number; open: boolean }[];
   /** 한 번이라도 읽은 표지판·석판 ("x,y") */
   read: string[];
-  /** 조수 로봇 (3부) */
+  /** 로봇 (3부) */
   bots: { id: number; x: number; y: number; facing: 'left' | 'right'; broken: boolean }[];
   /** 창살 (3부) */
   bars: { x: number; y: number; open: boolean }[];
-  /** 발판 (3부). pressed: 조수가 올라서 있음 */
+  /** 발판 (3부). pressed: 로봇이 올라서 있음 */
   plates: { x: number; y: number; pressed: boolean }[];
   /** 금고·석상 줄 (4부). values 는 지금 번호 순서의 값, peeked 는 들여다본 금고 */
   row: (ItemRow & { peeked: boolean[] }) | null;
@@ -104,7 +104,7 @@ function hurtMonster(state: BoardState, t: Pos, event: string, amount: number | 
   if (event === 'kill') state.monsters = state.monsters.filter((m) => !same(m, t));
 }
 
-/** 조수 로봇 하나의 행동 적용 */
+/** 로봇 하나의 행동 적용 */
 export function applyBotStep(state: BoardState, b: BotStep): void {
   const bot = state.bots.find((x) => x.id === b.id);
   if (!bot) return;

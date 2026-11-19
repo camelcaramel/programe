@@ -63,7 +63,7 @@ export function runStageWith(runStage: PyRunStage, code: string, levels: Level[]
       read: (dir: unknown, ln?: number | null) => guard(ln, () => 'VAL:' + JSON.stringify(world.read(dir))),
       open_gate: (dir: unknown, kind: string, json: string, shown: string, ln?: number | null) =>
         guard(ln, () => (world.openGate(dir, gateValue(kind, json), shown), '')),
-      // 3부: 몬스터 객체, 조수 로봇, 지도
+      // 3부: 몬스터 객체, 로봇, 지도
       scan: (dir: unknown, ln?: number | null) => guard(ln, () => 'VAL:' + JSON.stringify(world.scan(dir))),
       monster_hp: (id: unknown) => world.monsterHp(id),
       wait: (ln?: number | null) => guard(ln, () => (world.wait(), '')),

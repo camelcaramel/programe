@@ -30,7 +30,7 @@ export type Terrain =
 
 /**
  * 창살이 열리는 조건 (3부는 plates, 4부는 스테이지마다):
- * plates = 모든 발판에 조수 + 몬스터 없음, sorted = 석상이 가벼운→무거운 순서,
+ * plates = 모든 발판에 로봇 + 몬스터 없음, sorted = 석상이 가벼운→무거운 순서,
  * hanoi = 원판이 모두 C 기둥, chests = 보물상자를 모두 엶
  */
 export type BarsRule = 'plates' | 'sorted' | 'hanoi' | 'chests';
@@ -69,7 +69,7 @@ export type LookResult =
   | 'statue'
   | 'pillar'
   | 'toll'
-  /** 조수 로봇의 look() 에만: 옆 칸의 마법사 */
+  /** 로봇의 look() 에만: 옆 칸의 마법사 */
   | 'wizard'
   | Exclude<MonsterKind, 'mimic'>;
 
@@ -172,7 +172,7 @@ export interface Level {
   signs: { x: number; y: number; kind: 'sign' | 'tablet'; value: SignValue }[];
   /** 비밀 문과 암호 */
   gates: { x: number; y: number; code: GateCode }[];
-  /** 조수 로봇 처음 위치 (순서 = 로봇 번호) */
+  /** 로봇 처음 위치 (순서 = 로봇 번호) */
   bots: Pos[];
   /** scan() 사용 횟수 제한 (없으면 무제한) */
   scanLimit?: number;
@@ -214,7 +214,7 @@ export type TraceEvent =
   | 'pay' // 통행료 동전 하나 (모자라면 그대로, 딱 맞으면 문이 열림)
   | 'pay_over'; // 통행료보다 많이 냄: 경보, 쓰러짐
 
-/** 한 턴 동안 조수 로봇 하나가 한 일 */
+/** 한 턴 동안 로봇 하나가 한 일 */
 export interface BotStep {
   id: number;
   action: 'move' | 'cast';
@@ -254,13 +254,13 @@ export interface TraceStep {
   shown?: string;
   /** gate_wrong: 값은 같아 보이는데 자료형이 달라서 틀림 (예: "42" 와 42) */
   typeMismatch?: boolean;
-  /** read: 조수 로봇이 읽었으면 그 로봇 번호 (마법사는 그대로 있다) */
+  /** read: 로봇이 읽었으면 그 로봇 번호 (마법사는 그대로 있다) */
   by?: number;
   /** scan: 살펴본 몬스터 */
   info?: MonsterInfo;
   /** cast: 약점이 아닌 마법이라 반격으로 잃은 HP */
   counter?: number;
-  /** 이 턴에 조수 로봇들이 한 일 (마법사 행동 바로 뒤, 화면에서는 함께 움직인다) */
+  /** 이 턴에 로봇들이 한 일 (마법사 행동 바로 뒤, 화면에서는 함께 움직인다) */
   bots?: BotStep[];
   /** 이 턴이 끝난 뒤 열려 있는 창살 칸 ("x,y"). 창살이 있는 맵에서만 */
   barsOpen?: string[];

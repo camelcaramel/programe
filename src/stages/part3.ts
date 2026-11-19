@@ -46,7 +46,7 @@ const WALK_TO_EXIT = `while look("right") != "exit":
 move_right()
 `;
 
-/** 바닥 줄(창살 2칸 + 출구)을 붙인 조수 맵의 마법사 줄 (폭 13) */
+/** 바닥 줄(창살 2칸 + 출구)을 붙인 로봇 맵의 마법사 줄 (폭 13) */
 const WIZ_ROW = '#S..==.....E#';
 /** 마법사가 창살 앞(x=3)에서 출구(x=11)까지 가는 데 드는 턴 */
 const WIZ_CROSS = 8;
@@ -346,9 +346,9 @@ move_right()
   {
     id: 'stage-23',
     part: 3,
-    title: '첫 조수',
+    title: '첫 로봇',
     concept: '클래스 · self',
-    goal: '조수 로봇을 발판 위에 세우면 아래쪽 창살이 열려요. 로봇을 조종할 클래스를 만들어 고용하고, 창살을 지나 출구로!',
+    goal: '로봇을 발판 위에 세우면 아래쪽 창살이 열려요. 로봇을 조종할 클래스를 만들어 고용하고, 창살을 지나 출구로!',
     hint: '__init__ 에서 self.left = int(bot.read("up")) 로 걸음 수를 담고, act() 에서 self.left 가 0 보다 클 때만 움직이고 1 씩 줄여요.',
     note: '발판 위치(걸음 수)는 실행할 때마다 바뀌어요. 발판은 look() 으로는 보이지 않아요. 로봇이 발판을 지나치면 창살이 다시 닫혀요.',
     api: CLASS_API,
@@ -365,30 +365,30 @@ move_right()
       {
         name: '클래스 · __init__ · self · 메서드',
         text: [
-          '클래스(class)는 객체를 찍어 내는 틀이에요. Helper(bot) 처럼 부르면 새 객체가 만들어져요.',
+          '클래스(class)는 객체를 찍어 내는 틀이에요. Robot(bot) 처럼 부르면 새 객체가 만들어져요.',
           '__init__ 은 객체가 만들어질 때 한 번 불리는 메서드예요. 객체가 기억할 값을 self.이름 = 값 으로 담아요.',
           'self 는 "나 자신(이 객체)"이에요. 메서드(클래스 안의 함수)는 첫 매개변수로 self 를 받아요.',
           'self.left 처럼 객체에 담은 값은 메서드가 끝나도 남아 있어서, 다음에 불릴 때 이어서 쓸 수 있어요.',
         ],
         example:
           'class Counter:\n    def __init__(self, start):\n        self.n = start\n\n    def tick(self):\n        self.n = self.n - 1\n\nc = Counter(3)\nc.tick()\nprint(c.n)   # 2',
-        inGame: 'hire(Helper(bot)) 로 고용하면 내가 한 턴을 쓸 때마다 조수의 act() 가 불려요. 남은 걸음 수는 self.left 에 기억!',
+        inGame: 'hire(Robot(bot)) 로 고용하면 내가 한 턴을 쓸 때마다 그 객체의 act() 가 불려요. 남은 걸음 수는 self.left 에 기억!',
       },
     ],
-    starter: `# 조수 로봇은 내가 만든 "클래스"의 객체가 조종해요.
-# hire(조수) 로 고용하면, 내가 한 턴을 쓸 때마다 조수의 act() 가 한 번씩 불려요.
+    starter: `# 로봇은 내가 만든 "클래스"의 객체가 조종해요.
+# hire(객체) 로 고용하면, 내가 한 턴을 쓸 때마다 그 객체의 act() 가 한 번씩 불려요.
 # 로봇 위 표지판에 발판까지 걸음 수가 적혀 있어요. 발판을 지나치면 창살이 다시 닫혀요!
 
-class Helper:
+class Robot:
     def __init__(self, bot):
-        self.bot = bot   # 이 조수가 조종할 로봇
+        self.bot = bot   # 이 객체가 조종할 로봇
 
     def act(self):
         self.bot.move("right")
 
-hire(Helper(get_bots()[0]))
+hire(Robot(get_bots()[0]))
 ${WALK_TO_EXIT}`,
-    solution: `class Helper:
+    solution: `class Robot:
     def __init__(self, bot):
         self.bot = bot
         self.left = int(bot.read("up"))
@@ -398,17 +398,17 @@ ${WALK_TO_EXIT}`,
             self.bot.move("right")
             self.left = self.left - 1
 
-hire(Helper(get_bots()[0]))
+hire(Robot(get_bots()[0]))
 ${WALK_TO_EXIT}`,
     bypasses: [
       {
         name: '세지 않고 계속 걷기',
-        code: `class Helper:\n    def __init__(self, bot):\n        self.bot = bot\n\n    def act(self):\n        self.bot.move("right")\n\nhire(Helper(get_bots()[0]))\n${WALK_TO_EXIT}`,
+        code: `class Robot:\n    def __init__(self, bot):\n        self.bot = bot\n\n    def act(self):\n        self.bot.move("right")\n\nhire(Robot(get_bots()[0]))\n${WALK_TO_EXIT}`,
       },
       {
         name: '맵 1 의 걸음 수를 코드에 쓰기',
         code: (levels) =>
-          `class Helper:\n    def __init__(self, bot):\n        self.bot = bot\n        self.left = ${levels[0].signs[0].value}\n\n    def act(self):\n        if self.left > 0:\n            self.bot.move("right")\n            self.left = self.left - 1\n\nhire(Helper(get_bots()[0]))\n${WALK_TO_EXIT}`,
+          `class Robot:\n    def __init__(self, bot):\n        self.bot = bot\n        self.left = ${levels[0].signs[0].value}\n\n    def act(self):\n        if self.left > 0:\n            self.bot.move("right")\n            self.left = self.left - 1\n\nhire(Robot(get_bots()[0]))\n${WALK_TO_EXIT}`,
       },
       { name: '클래스 없이 로봇을 직접 움직이기', code: `bot = get_bots()[0]\nfor i in range(int(bot.read("up"))):\n    bot.move("right")\n${WALK_TO_EXIT}` },
       { name: 'hire 에 함수 넣기', code: `bot = get_bots()[0]\ndef act():\n    bot.move("right")\nhire(act)\n${WALK_TO_EXIT}` },
@@ -419,10 +419,10 @@ ${WALK_TO_EXIT}`,
   {
     id: 'stage-24',
     part: 3,
-    title: '조수 부대',
+    title: '로봇 부대',
     concept: '인스턴스 여러 개',
-    goal: '조수 로봇이 여러 대예요. 모든 로봇이 자기 발판에 "동시에" 서 있어야 창살이 열려요.',
-    hint: 'for b in get_bots(): hire(Helper(b)) 로 로봇마다 조수 객체를 하나씩 만들어요. 객체마다 자기 self.left 를 따로 기억해요.',
+    goal: '로봇이 여러 대예요. 모든 로봇이 자기 발판에 "동시에" 서 있어야 창살이 열려요.',
+    hint: 'for b in get_bots(): hire(Robot(b)) 로 로봇마다 Robot 객체를 하나씩 만들어요. 객체마다 자기 self.left 를 따로 기억해요.',
     note: '로봇 수(2~4대)와 발판 깊이는 실행할 때마다 바뀌어요.',
     api: CLASS_API,
     seeds: [1, 7, 11],
@@ -453,13 +453,13 @@ ${WALK_TO_EXIT}`,
         ],
         example:
           'a = Counter(3)\nb = Counter(5)\na.tick()\nprint(a.n, b.n)   # 2 5\n\nteam = []\nfor n in [1, 2, 3]:\n    team.append(Counter(n))',
-        inGame: '로봇마다 발판까지 걸음 수가 달라요. 로봇 수만큼 Helper 객체를 만들어 각자 세게 하세요.',
+        inGame: '로봇마다 발판까지 걸음 수가 달라요. 로봇 수만큼 Robot 객체를 만들어 각자 세게 하세요.',
       },
     ],
     starter: `# 로봇이 여러 대예요(맵마다 2~4대). get_bots() 는 로봇 리스트를 돌려줘요.
 # 로봇 위 표지판에는 그 로봇의 발판까지 걸음 수가 적혀 있어요.
 
-class Helper:
+class Robot:
     def __init__(self, bot):
         self.bot = bot
         self.left = int(bot.read("up"))
@@ -471,9 +471,9 @@ class Helper:
 
 bots = get_bots()
 print(len(bots), "대")
-hire(Helper(bots[0]))
+hire(Robot(bots[0]))
 ${WALK_TO_EXIT}`,
-    solution: `class Helper:
+    solution: `class Robot:
     def __init__(self, bot):
         self.bot = bot
         self.left = int(bot.read("up"))
@@ -484,17 +484,17 @@ ${WALK_TO_EXIT}`,
             self.left = self.left - 1
 
 for b in get_bots():
-    hire(Helper(b))
+    hire(Robot(b))
 ${WALK_TO_EXIT}`,
     bypasses: [
       {
         name: '모두가 같이 쓰는 클래스 변수 하나로 세기',
-        code: `class Helper:\n    left = 0\n    def __init__(self, bot):\n        self.bot = bot\n        Helper.left = int(bot.read("up"))\n\n    def act(self):\n        if Helper.left > 0:\n            self.bot.move("down")\n            Helper.left = Helper.left - 1\n\nfor b in get_bots():\n    hire(Helper(b))\n${WALK_TO_EXIT}`,
+        code: `class Robot:\n    left = 0\n    def __init__(self, bot):\n        self.bot = bot\n        Robot.left = int(bot.read("up"))\n\n    def act(self):\n        if Robot.left > 0:\n            self.bot.move("down")\n            Robot.left = Robot.left - 1\n\nfor b in get_bots():\n    hire(Robot(b))\n${WALK_TO_EXIT}`,
       },
       {
         name: '맵 1 의 걸음 수를 차례로 외우기',
         code: (levels) =>
-          `steps = ${JSON.stringify(levels[0].signs.map((s) => Number(s.value)))}\nclass Helper:\n    def __init__(self, bot, n):\n        self.bot = bot\n        self.left = n\n\n    def act(self):\n        if self.left > 0:\n            self.bot.move("down")\n            self.left = self.left - 1\n\nbots = get_bots()\nfor i in range(len(steps)):\n    if i < len(bots):\n        hire(Helper(bots[i], steps[i]))\n${WALK_TO_EXIT}`,
+          `steps = ${JSON.stringify(levels[0].signs.map((s) => Number(s.value)))}\nclass Robot:\n    def __init__(self, bot, n):\n        self.bot = bot\n        self.left = n\n\n    def act(self):\n        if self.left > 0:\n            self.bot.move("down")\n            self.left = self.left - 1\n\nbots = get_bots()\nfor i in range(len(steps)):\n    if i < len(bots):\n        hire(Robot(bots[i], steps[i]))\n${WALK_TO_EXIT}`,
       },
     ],
   },
@@ -503,9 +503,9 @@ ${WALK_TO_EXIT}`,
   {
     id: 'stage-25',
     part: 3,
-    title: '사냥 조수',
+    title: '사냥 로봇',
     concept: '상태에 따라 행동',
-    goal: '통로마다 조수 로봇과 몬스터가 있어요. 조수들이 통로의 몬스터를 모두 처치하면 창살이 열려요.',
+    goal: '통로마다 로봇과 몬스터가 있어요. 로봇들이 통로의 몬스터를 모두 처치하면 창살이 열려요.',
     hint: 'self.dir 에 지금 가는 방향을 기억하고, 벽에 닿으면 반대로 바꿔요. 몬스터는 self.bot.scan(self.dir) 로 보고 약점 마법을!',
     note: '통로 길이, 로봇 위치, 몬스터의 위치·약점은 실행할 때마다 바뀌어요. 약점이 아닌 마법을 쓴 로봇은 반격을 받아 고장 나요.',
     api: CLASS_API,
@@ -549,14 +549,14 @@ ${WALK_TO_EXIT}`,
         text: [
           '객체는 지금 어떤 상황인지(상태)를 속성에 기억해 둘 수 있어요. 예: self.dir = "left"',
           '메서드는 그 상태를 보고 다르게 행동하고, 필요하면 상태를 바꿔요.',
-          '조수마다 상태가 따로 있어서, 한 조수가 돌아서도 다른 조수는 하던 일을 계속해요.',
+          '로봇마다 상태가 따로 있어서, 한 로봇이 돌아서도 다른 로봇은 하던 일을 계속해요.',
         ],
         example:
           'class Walker:\n    def __init__(self):\n        self.dir = "left"\n\n    def turn(self):\n        if self.dir == "left":\n            self.dir = "right"\n        else:\n            self.dir = "left"',
         inGame: '벽에 닿으면 self.dir 을 바꾸고, 몬스터가 있으면 self.bot.scan(self.dir).weak 로 마법을 써요.',
       },
     ],
-    starter: `# 조수들이 통로의 몬스터를 모두 처치하면 창살이 열려요.
+    starter: `# 로봇들이 통로의 몬스터를 모두 처치하면 창살이 열려요.
 # 로봇은 통로 가운데쯤에서 시작해요. 몬스터는 양쪽에 있어요!
 # 로봇도 scan()·cast() 를 쓸 수 있어요: self.bot.scan(방향), self.bot.cast(마법, 방향)
 

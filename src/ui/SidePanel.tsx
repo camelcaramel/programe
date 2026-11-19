@@ -315,7 +315,7 @@ function HelpTab() {
                 <b>미믹</b>은 상자인 척해요. <code>look()</code> 도 <code>"chest"</code> 라고 해요. 부딪히면 HP −3.
               </li>
               <li>
-                <b>조수 로봇</b>은 <code>hire()</code> 한 객체의 <code>act()</code> 가 조종해요. 내가 1턴을 쓸 때마다 모두 한 번씩, 함께 움직여요.
+                <b>로봇</b>은 <code>hire()</code> 한 객체의 <code>act()</code> 가 조종해요. 내가 1턴을 쓸 때마다 모두 한 번씩, 함께 움직여요.
               </li>
               <li>
                 <b>창살</b>은 모든 <b>발판</b>에 로봇이 서 있고 몬스터가 하나도 없을 때만 열려요. 발판은 <code>look()</code> 에 안 보여요.
@@ -509,7 +509,7 @@ room()                    # 함수 부르기`}
           {stage.part >= 3 &&
             `
 
-class Helper:             # 클래스 (객체의 틀)
+class Robot:             # 클래스 (객체의 틀)
     def __init__(self, bot):
         self.bot = bot    # 객체가 기억할 값
         self.left = 3
@@ -517,7 +517,7 @@ class Helper:             # 클래스 (객체의 틀)
     def act(self):        # 메서드
         self.left = self.left - 1
 
-h = Helper(get_bots()[0]) # 객체 만들기
+h = Robot(get_bots()[0]) # 객체 만들기
 hire(h)`}
         </pre>
       </section>

@@ -55,7 +55,7 @@ export const GATE_API = [...ALL_API, 'read', 'open_gate'];
 export const PART2_API = [...GATE_API, 'move'];
 /** 3부 19단계부터: scan(방향) 으로 몬스터 객체 */
 export const OBJ_API = [...PART2_API, 'scan'];
-/** 3부 23단계부터: 조수 로봇 (클래스) */
+/** 3부 23단계부터: 로봇 (클래스) */
 export const CLASS_API = [...OBJ_API, 'wait', 'get_bots', 'hire'];
 /** 3부 26단계부터: get_map() 2차원 리스트 */
 export const MAP_API = [...CLASS_API, 'get_map'];

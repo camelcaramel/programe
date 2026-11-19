@@ -192,7 +192,7 @@ class Monster:
 
 
 class Bot:
-    """get_bots() 가 돌려주는 조수 로봇. move·cast 는 hire() 한 조수의 act() 안에서만 (한 턴에 하나)."""
+    """get_bots() 가 돌려주는 로봇. move·cast 는 hire() 한 객체의 act() 안에서만 (한 턴에 하나)."""
 
     def __init__(self, number, api):
         self.number = number
@@ -227,7 +227,7 @@ def _run_stage(code_str, api, limits_json):
         if len(out) < 50:
             out.append(sep.join(str(a) for a in args))
 
-    # 3부: hire() 한 조수들. 마법사가 1턴을 쓸 때마다 모두 act() 를 한 번씩 부른다
+    # 3부: hire() 한 로봇들. 마법사가 1턴을 쓸 때마다 모두 act() 를 한 번씩 부른다
     helpers = []
     bots = []
     round_needed = bool(api.needs_round())
@@ -285,9 +285,9 @@ def _run_stage(code_str, api, limits_json):
 
     def hire(helper):
         if isinstance(helper, type):
-            raise ValueError("hire() 에는 클래스가 아니라 객체를 넣어요. hire(Helper(bot)) 처럼 괄호를 붙여 객체를 만드세요.")
+            raise ValueError("hire() 에는 클래스가 아니라 객체를 넣어요. hire(Robot(bot)) 처럼 괄호를 붙여 객체를 만드세요.")
         if not callable(getattr(helper, "act", None)):
-            raise ValueError("hire() 에는 act() 메서드가 있는 조수 객체를 넣어요. 예: hire(Helper(bot))")
+            raise ValueError("hire() 에는 act() 메서드가 있는 객체를 넣어요. 예: hire(Robot(bot))")
         helpers.append(helper)
 
     def read(direction):

@@ -55,7 +55,7 @@ export const MONSTER_CHAR: Record<string, MonsterKind> = {
 };
 
 /**
- * 창살 규칙 (3부): 모든 발판 위에 조수 로봇이 서 있고, 몬스터가 하나도 남지 않았으면 열린다.
+ * 창살 규칙 (3부): 모든 발판 위에 로봇이 서 있고, 몬스터가 하나도 남지 않았으면 열린다.
  * 조건이 깨지면 다시 닫히지만, 누가 서 있는 창살 칸은 닫히지 않는다 (World·replay 가 함께 쓴다)
  */
 export function barsShouldOpen(plates: readonly Pos[], bots: readonly Pos[], monstersLeft: number): boolean {

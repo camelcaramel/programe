@@ -101,7 +101,7 @@ describe.each(STAGES.map((s) => [s.id, s] as const))('%s', (_id, stage) => {
   }
 
   if (stage.part === 3) {
-    it('3부: 몬스터 변이(종류 → 약점)·조수 걸음 수·지도가 시드마다 다르다', () => {
+    it('3부: 몬스터 변이(종류 → 약점)·로봇 걸음 수·지도가 시드마다 다르다', () => {
       const ls = levelsOf(stage);
       const facts = ls.map((l) =>
         JSON.stringify({

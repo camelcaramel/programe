@@ -1,8 +1,8 @@
 // 턴제 그리드 시뮬레이터. 학생 API(move·look·cast …)의 실제 규칙이 여기 모두 있다.
 // 행동마다 TraceStep 을 남기고, 렌더러는 이 기록만 보고 재생한다.
 //
-// 3부의 조수 로봇: 마법사가 1턴을 쓴 뒤 파이썬이 roundBegin() → 조수마다 act() (botMove·botCast …) → roundEnd() 를 부른다.
-// 조수들이 한 일은 그 턴의 마법사 기록(TraceStep.bots)에 붙여서, 화면에서는 함께 움직인다.
+// 3부의 로봇: 마법사가 1턴을 쓴 뒤 파이썬이 roundBegin() → 로봇마다 act() (botMove·botCast …) → roundEnd() 를 부른다.
+// 로봇들이 한 일은 그 턴의 마법사 기록(TraceStep.bots)에 붙여서, 화면에서는 함께 움직인다.
 import { SimInputError, SimStop } from './errors';
 import { COINS, MONSTER_RULES, PEG_NAMES, SKILLS, SKILL_ELEMENT, WEAK_DAMAGE, barsOpenFor, defaultWeak } from './rules';
 import {
@@ -58,7 +58,7 @@ const LOOK_KO: Partial<Record<LookResult, string>> = {
   chest: '보물상자',
   key: '열쇠',
   bars: '창살',
-  bot: '조수 로봇',
+  bot: '로봇',
   wizard: '마법사',
   vault: '금고',
   statue: '석상',
@@ -153,7 +153,7 @@ export class World {
     return this.ended;
   }
 
-  /** 조수 로봇이나 창살이 있어서, 마법사가 턴을 쓸 때마다 roundBegin/roundEnd 를 불러야 하는지 */
+  /** 로봇이나 창살이 있어서, 마법사가 턴을 쓸 때마다 roundBegin/roundEnd 를 불러야 하는지 */
   get needsRound(): boolean {
     return this.bots.length > 0 || this.barsCells.length > 0;
   }
@@ -267,7 +267,7 @@ export class World {
     return 0;
   }
 
-  /** 한 턴 쉬기 (1턴. 조수 로봇들은 움직인다) */
+  /** 한 턴 쉬기 (1턴. 로봇들은 움직인다) */
   wait(): void {
     this.beginTurn();
     this.record('wait', 'down', 'wait', this.pos, true);
@@ -417,9 +417,9 @@ export class World {
     this.trace.push({ ...this.snapshot('pay', d, 'pay', t, true), ...base, opened });
   }
 
-  // ───────── 조수 로봇 (3부) ─────────
+  // ───────── 로봇 (3부) ─────────
 
-  /** 마법사가 1턴을 쓴 뒤, 조수들의 act() 를 부르기 전에 */
+  /** 마법사가 1턴을 쓴 뒤, 로봇들의 act() 를 부르기 전에 */
   roundBegin(): void {
     if (this.ended) throw new SimStop(this.ended);
     this.inRound = true;
@@ -427,7 +427,7 @@ export class World {
     for (const b of this.bots) b.acted = false;
   }
 
-  /** 조수들의 act() 가 모두 끝난 뒤: 창살을 다시 정하고, 이번 턴 기록에 붙인다 */
+  /** 로봇들의 act() 가 모두 끝난 뒤: 창살을 다시 정하고, 이번 턴 기록에 붙인다 */
   roundEnd(): void {
     this.inRound = false;
     this.updateBars();
@@ -639,15 +639,15 @@ export class World {
   private botById(id: unknown): BotState {
     if (this.ended) throw new SimStop(this.ended);
     const bot = typeof id === 'number' ? this.bots[id] : undefined;
-    if (!bot) throw new SimInputError(`조수 로봇 번호가 잘못됐어요: ${show(id)}`);
+    if (!bot) throw new SimInputError(`로봇 번호가 잘못됐어요: ${show(id)}`);
     return bot;
   }
 
   private botForAction(id: unknown): BotState {
     const bot = this.botById(id);
     if (!this.inRound)
-      throw new SimInputError('조수 로봇은 hire() 로 고용한 조수의 act() 안에서만 움직이거나 마법을 쓸 수 있어요.');
-    if (bot.acted) throw new SimInputError('조수 로봇은 한 턴에 한 번만 움직이거나 마법을 쓸 수 있어요.');
+      throw new SimInputError('로봇은 hire() 로 고용한 객체의 act() 안에서만 움직이거나 마법을 쓸 수 있어요.');
+    if (bot.acted) throw new SimInputError('로봇은 한 턴에 한 번만 움직이거나 마법을 쓸 수 있어요.');
     return bot;
   }
 
