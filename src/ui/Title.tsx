@@ -179,11 +179,14 @@ function CodeLane({ y, cols }: { y: number; cols: number }) {
 
 // ---------------------------------------------------------------- 던전 장면 (배경)
 
-function Diorama() {
-  const { scale, cols, rows, visible } = useWorld();
+type World = ReturnType<typeof useWorld>;
+
+function Diorama({ world }: { world: World }) {
+  const { scale, cols, rows, visible } = world;
   const walls = 2;
   const side = Math.max(2, Math.floor(cols * 0.18)); // 가운데(로고·메뉴)를 비우고 양옆에 소품
-  const lane = Math.max(walls + 3, visible - 2); // 화면에 다 보이는 맨 아래에서 두 번째 줄
+  // 화면에 다 보이는 맨 아래 줄. 로고·메뉴 쪽은 CSS 에서 아래 2.8칸(--tile)을 비워 두어 마법사·말풍선과 겹치지 않는다
+  const lane = Math.max(walls + 3, visible - 1);
   const decorate = useCallback(
     (put: (n: number, x: number, y: number) => void) => {
       for (let x = 2; x < cols; x += 6) put(DECO.banner, x, 1);
@@ -397,6 +400,7 @@ export function TitleScreen() {
   const progress = useStore(progressStore, (s) => s.stages);
   const muted = useStore(uiStore, (s) => s.muted);
   const [scene, setScene] = useState<'menu' | 'prologue'>('menu');
+  const world = useWorld();
   const total = STAGES.reduce((n, s) => n + (progress[s.id]?.stars ?? 0), 0);
   const next = nextRecommended(progress);
   const resume = total > 0 && next ? getStage(next) : null;
@@ -421,8 +425,8 @@ export function TitleScreen() {
   );
 
   return (
-    <div className="overlay gtitle">
-      <Diorama />
+    <div className="overlay gtitle" style={{ '--tile': `${T * world.scale}px` } as CSSProperties}>
+      <Diorama world={world} />
       <div className="gtitle-top">
         <span className="gstars" title="모은 별">
           <StarIcon on />

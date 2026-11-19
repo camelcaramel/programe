@@ -742,7 +742,8 @@ button.concept:focus-visible { outline: 3px solid var(--gold); outline-offset: 2
 @keyframes dio-coinup { from { transform: translateY(4px); opacity: 1; } to { transform: translateY(-12px); opacity: 0; } }
 
 /* 로고 · 메뉴 */
-.gtitle-center { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 100%; padding: 56px 16px 64px; text-align: center; }
+/* 아래쪽 2.8칸은 마법사가 걷는 길과 말풍선 자리라 비워 둔다 (--tile = 화면에서 한 칸 크기) */
+.gtitle-center { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; height: 100%; padding: 56px 16px calc(var(--tile, 64px) * 2.8); text-align: center; }
 .glogo { position: relative; display: flex; flex-direction: column; align-items: center; margin: 0; line-height: 1; font-weight: 400; }
 .plogo { position: relative; width: min(780px, 92vw); height: auto; overflow: visible; filter: drop-shadow(0 8px 0 rgba(10, 6, 18, 0.55)); }
 .plogo-letter { animation: plogo-in 0.55s cubic-bezier(.2, 1.6, .4, 1) both, plogo-wave 3s ease-in-out infinite; }
@@ -834,6 +835,15 @@ button.concept:focus-visible { outline: 3px solid var(--gold); outline-offset: 2
   .pro-text { font-size: 17px; }
 }
 @media (max-height: 760px) and (min-width: 561px) { .pro-world { --pro-s: 3.5; } }
+/* 낮은 화면: 키 안내를 숨기고 로고·메뉴 사이를 좁혀, 아래쪽 길(마법사의 코드 말풍선)과 겹치지 않게 */
+@media (max-height: 700px) {
+  .gtitle-keys { display: none; }
+  .gtitle-center { gap: 8px; padding-top: 44px; }
+  .plogo { width: min(640px, 86vw); }
+  .glogo-sub { margin-top: 10px; }
+  .gmenu { margin-top: 4px; padding: 8px 10px; }
+  .gmenu-item { padding-top: 5px; padding-bottom: 5px; font-size: 23px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .dio *, .plogo-letter, .plogo-shine, .glogo-aura, .glogo-pai, .gmenu-cursor, .pro-next { animation: none !important; }
 }
