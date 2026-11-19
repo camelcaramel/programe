@@ -1,22 +1,27 @@
 // 새 개념 카드와 첫 사용자 튜토리얼 (외부 라이브러리 없이 React 로 직접)
 import { useEffect, useState, type ReactNode } from 'react';
 import { gameStore, useStore } from '../state/store';
-import { closeConcept, closeEnding, closeIntro, endTutorial, guideStore, tutorialStep, type TutorialId } from '../state/guide';
-import { PART_STORY, type PartNo } from '../stages/story';
+import { closeBeat, closeConcept, closeEnding, closeIntro, closeLine, endTutorial, guideStore, tutorialStep, type TutorialId } from '../state/guide';
+import { PART_STORY, STAGE_STORY, STORY_BEATS, type PartNo } from '../stages/story';
 import { getStage, stageIndex, stageNo } from '../stages';
 import { mapScreenRect } from '../game/scenes/GridScene';
 
 export function Guide() {
   const intro = useStore(guideStore, (s) => s.intro);
   const ending = useStore(guideStore, (s) => s.ending);
+  const beat = useStore(guideStore, (s) => s.beat);
+  const line = useStore(guideStore, (s) => s.line);
   const concept = useStore(guideStore, (s) => s.concept);
   const tutorial = useStore(guideStore, (s) => s.tutorial);
+  const scene = intro !== null || ending !== null || beat !== null;
   return (
     <>
       {intro !== null && <PartIntro part={intro as PartNo} />}
       {intro === null && ending !== null && <EndingCard part={ending as PartNo} />}
-      {intro === null && ending === null && concept && <ConceptCard stageId={concept} />}
-      {intro === null && ending === null && tutorial && !concept && <Tutorial id={tutorial.id} step={tutorial.step} />}
+      {intro === null && ending === null && beat !== null && <BeatCard stageId={beat} />}
+      {!scene && concept && <ConceptCard stageId={concept} />}
+      {!scene && tutorial && !concept && <Tutorial id={tutorial.id} step={tutorial.step} />}
+      {!scene && !concept && !tutorial && line && <PaiLine stageId={line} />}
     </>
   );
 }
@@ -167,11 +172,7 @@ function EndingCard({ part }: { part: PartNo }) {
       <div className="concept-card ending-card">
         <div className="concept-ribbon">{part === 4 ? '엔딩' : `${part}부 끝`}</div>
         <h2 className="concept-name">{title}</h2>
-        {lines.map((l, i) => (
-          <p key={i} className="ending-line">
-            {l}
-          </p>
-        ))}
+        <SceneLines lines={lines} />
         <div className="result-actions">
           <button className="btn primary" autoFocus onClick={closeEnding}>
             {part === 4 ? '고마워요, 선생님!' : '다음 층으로'}
@@ -179,6 +180,85 @@ function EndingCard({ part }: { part: PartNo }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** 장면 글: 이어진 "파이: …" 줄은 파이의 말풍선 하나로, 나머지는 해설 문단으로 */
+function SceneLines({ lines }: { lines: string[] }) {
+  const groups: { pai: boolean; lines: string[] }[] = [];
+  for (const l of lines) {
+    const pai = l.startsWith('파이: ');
+    const text = pai ? l.slice(4) : l;
+    const last = groups[groups.length - 1];
+    if (last && last.pai === pai && pai) last.lines.push(text);
+    else groups.push({ pai, lines: [text] });
+  }
+  return (
+    <>
+      {groups.map((g, i) =>
+        g.pai ? (
+          <PaiSays key={i} lines={g.lines} />
+        ) : (
+          <p key={i} className="ending-line">
+            {g.lines[0]}
+          </p>
+        ),
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- 중간 이야기 (그 스테이지를 처음 깼을 때)
+
+function BeatCard({ stageId }: { stageId: string }) {
+  useEscape(closeBeat);
+  const { title, lines } = STORY_BEATS[stageId];
+  return (
+    <div className="guide-modal" role="dialog" aria-modal="true" aria-label={`이야기: ${title}`}>
+      <div className="concept-card ending-card">
+        <div className="concept-ribbon">이야기</div>
+        <h2 className="concept-name">{title}</h2>
+        <SceneLines lines={lines} />
+        <div className="result-actions">
+          <button className="btn primary" autoFocus onClick={closeBeat}>
+            계속하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 맵 위 파이의 한 줄 (스테이지를 열 때 잠깐)
+
+function PaiLine({ stageId }: { stageId: string }) {
+  const screen = useStore(gameStore, (s) => s.screen);
+  // 맵 바로 아래(실행 전에는 비어 있는 결과 도크 자리)에 띄운다. 위쪽은 좁은 화면에서 HUD 와 겹친다
+  const [pos, setPos] = useState<{ left: number; top: number; maxWidth: number } | null>(null);
+  useEffect(() => {
+    const t = setTimeout(closeLine, 9000);
+    const place = () => {
+      const r = mapScreenRect();
+      const canvas = document.querySelector('canvas')?.getBoundingClientRect();
+      if (!r || !canvas) return;
+      const left = Math.max(canvas.left + 16, r.left);
+      // 맵 칸(캔버스) 안에서만: 오른쪽 코드 창과 겹치지 않게
+      setPos({ left, top: Math.min(r.top + r.height + 10, window.innerHeight - 90), maxWidth: Math.max(220, canvas.right - left - 16) });
+    };
+    const raf = requestAnimationFrame(place);
+    window.addEventListener('resize', place);
+    return () => {
+      clearTimeout(t);
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', place);
+    };
+  }, [stageId]);
+  if (screen !== 'play' || !STAGE_STORY[stageId] || !pos) return null;
+  return (
+    <button className="pai-line" style={pos} onClick={closeLine} title="눌러서 닫기">
+      <PaiIcon size={40} />
+      <span className="pai-line-bubble">{STAGE_STORY[stageId]}</span>
+    </button>
   );
 }
 

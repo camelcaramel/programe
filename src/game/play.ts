@@ -4,7 +4,7 @@ import { python } from '../python/runner';
 import { STAGES, getStage, stageIndex } from '../stages';
 import { scoreRun } from '../stages/score';
 import { codeFor, recordStars } from '../state/codeStore';
-import { closeGuide, onStageCleared, onStageOpen } from '../state/guide';
+import { closeGuide, closeLine, onStageCleared, onStageOpen } from '../state/guide';
 import { clearLog, currentTrace, gameStore, log, toast, uiStore, type Speed } from '../state/store';
 
 const STEP_MS = 420; // 1× 속도에서 한 턴
@@ -81,6 +81,7 @@ export async function runCode() {
   const stage = getStage(s.stageId);
   const code = codeFor(s.stageId);
   gameStore.set({ phase: 'running', playing: false, step: 0, result: null, score: null, newRecord: false });
+  closeLine();
   uiStore.set({ codeError: null });
 
   const result = await python.runStage(code, s.levels, stage.api);

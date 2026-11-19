@@ -1,9 +1,11 @@
+import { useEffect, useState, type CSSProperties } from 'react';
 import { gameStore, toastStore, useStore } from '../state/store';
 import { nextRecommended, progressStore } from '../state/codeStore';
 import { goSelect, goTitle, openStage } from '../game/play';
-import { STAGES, type StageInfo } from '../stages';
+import { STAGES, getStage, stageNo, type StageInfo } from '../stages';
 import { replayTutorial, seenEndings, showEnding, showIntro } from '../state/guide';
 import { PROLOGUE } from '../stages/story';
+import { PaiIcon } from './Guide';
 import { TILE } from '../game/scenes/GridScene';
 import { tileImg } from './SidePanel';
 import { StarIcon } from './icons';
@@ -32,37 +34,146 @@ export function Overlays() {
 /** 바닥 타일을 깐 던전 배경 */
 const floorBg = { backgroundImage: `url(${tileImg(TILE.floor)})` };
 
+/** 처음 화면 데모: 두루마리(코드) 한 줄씩 그대로 움직이는 마법사 */
+const DEMO_CODE = [
+  'for i in range(2):',
+  '    move_right()',
+  'if look("right") == "slime":',
+  '    cast("fireball", "right")',
+  'while look("right") != "exit":',
+  '    move_right()',
+  'move_right()',
+];
+/** 칸: # 벽, S 시작, . 바닥, s 슬라임, c 상자, E 출구 */
+const DEMO_ROW = '#S..s.cE#';
+/** 장면마다: 실행 중인 줄, 마법사 x, 불꽃, 슬라임·상자 상태, 탈출 */
+const DEMO_STEPS: { hl: number; x: number; fire?: boolean; slime: boolean; chest: boolean; win?: boolean }[] = [
+  { hl: -1, x: 1, slime: true, chest: false },
+  { hl: 0, x: 1, slime: true, chest: false },
+  { hl: 1, x: 2, slime: true, chest: false },
+  { hl: 0, x: 2, slime: true, chest: false },
+  { hl: 1, x: 3, slime: true, chest: false },
+  { hl: 2, x: 3, slime: true, chest: false },
+  { hl: 3, x: 3, fire: true, slime: true, chest: false },
+  { hl: 3, x: 3, slime: false, chest: false },
+  { hl: 4, x: 3, slime: false, chest: false },
+  { hl: 5, x: 4, slime: false, chest: false },
+  { hl: 5, x: 5, slime: false, chest: false },
+  { hl: 5, x: 6, slime: false, chest: true },
+  { hl: 4, x: 6, slime: false, chest: true },
+  { hl: 6, x: 7, slime: false, chest: true, win: true },
+  { hl: 6, x: 7, slime: false, chest: true, win: true },
+  { hl: -1, x: 7, slime: false, chest: true, win: true },
+];
+
+function DemoScroll() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    let still = false;
+    try {
+      still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {
+      /* 무시 */
+    }
+    if (still) return;
+    const t = setInterval(() => setI((n) => (n + 1) % DEMO_STEPS.length), 700);
+    return () => clearInterval(t);
+  }, []);
+  const st = DEMO_STEPS[i];
+  const tile = (c: string) => (c === '#' ? TILE.wall : c === 'E' ? TILE.exit : TILE.floor);
+  return (
+    <div className="demo" aria-label="데모: 마법사가 두루마리의 코드를 한 줄씩 그대로 따라 움직여요" role="img">
+      <div className="demo-map" style={{ '--cols': DEMO_ROW.length } as CSSProperties}>
+        {[...'#'.repeat(DEMO_ROW.length), ...DEMO_ROW, ...'#'.repeat(DEMO_ROW.length)].map((c, k) => (
+          <img key={k} src={tileImg(tile(c))} alt="" className="pixel demo-tile" />
+        ))}
+        {st.slime && <img src={tileImg(TILE.slime)} alt="" className="pixel demo-thing demo-slime" style={{ '--x': 4 } as CSSProperties} />}
+        <img src={tileImg(st.chest ? TILE.chestOpen : TILE.chest)} alt="" className="pixel demo-thing" style={{ '--x': 6 } as CSSProperties} />
+        {st.fire && <span className="demo-fire" style={{ '--x': 4 } as CSSProperties} />}
+        <img
+          src={tileImg(TILE.player)}
+          alt=""
+          className={`pixel demo-thing demo-hero ${st.win ? 'win' : ''}`}
+          style={{ '--x': st.x } as CSSProperties}
+        />
+      </div>
+      <pre className="demo-code">
+        {DEMO_CODE.map((l, k) => (
+          <span key={k} className={k === st.hl ? 'on' : ''}>
+            {l}
+            {'\n'}
+          </span>
+        ))}
+      </pre>
+    </div>
+  );
+}
+
 function TitleScreen() {
+  const progress = useStore(progressStore, (s) => s.stages);
+  const total = STAGES.reduce((n, s) => n + (progress[s.id]?.stars ?? 0), 0);
+  const next = nextRecommended(progress);
+  const resume = total > 0 && next ? getStage(next) : null;
   return (
     <div className="overlay title dungeon-bg" style={floorBg}>
       <div className="title-actors">
         <img src={tileImg(TILE.bat)} alt="" className="pixel ta ta-bat" />
-        <img src={tileImg(TILE.player)} alt="" className="pixel ta ta-hero" />
-        <img src={tileImg(TILE.slime)} alt="" className="pixel ta ta-slime" />
-        <img src={tileImg(TILE.giant)} alt="" className="pixel ta ta-giant" />
-        <img src={tileImg(TILE.chest)} alt="" className="pixel ta ta-chest" />
+        <img src={tileImg(TILE.ghost)} alt="" className="pixel ta ta-ghost" />
+        <span className="torch torch-l" />
+        <span className="torch torch-r" />
       </div>
-      <div className="screen">
+      <div className="screen title-screen">
         <h1 className="logo">
           <span className="logo-text">programe</span>
           <em className="logo-tag">가제</em>
         </h1>
         <div className="ribbon">사라진 스승을 찾아, 파이썬 주문으로</div>
-        <p className="story-card">
-          {PROLOGUE}
-          <br />
-          <b>파이썬 코드</b>로 주문을 적으면 캐릭터는 <b>오직 그 코드대로만</b> 움직여요. <b>?</b> 칸은 들어갈 때마다 바뀌니 조심!
-        </p>
-        <button
-          className="btn primary big start"
-          autoFocus
-          onClick={(e) => {
-            e.currentTarget.blur();
-            goSelect();
-          }}
-        >
-          모험 시작
-        </button>
+        <div className="title-pai">
+          <PaiIcon size={64} />
+          <p className="title-bubble">
+            <b>파이</b>
+            {PROLOGUE} 방에 들어가기 전에 <em>두루마리(코드)</em>에 주문을 적으면, 적힌 그대로만 움직여요!
+          </p>
+        </div>
+        <DemoScroll />
+        <div className="title-actions">
+          {resume ? (
+            <>
+              <button className="btn primary big start" autoFocus onClick={() => openStage(resume.id)}>
+                이어하기 · {stageNo(resume.id)}. {resume.title}
+              </button>
+              <button className="btn ghost" onClick={goSelect}>
+                던전 지도
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn primary big start"
+              autoFocus
+              onClick={(e) => {
+                e.currentTarget.blur();
+                goSelect();
+              }}
+            >
+              모험 시작
+            </button>
+          )}
+        </div>
+        <ol className="floors" aria-label="층마다 모은 별">
+          {PARTS.map((p) => {
+            const list = STAGES.filter((s) => s.part === p.part);
+            const got = list.reduce((n, s) => n + (progress[s.id]?.stars ?? 0), 0);
+            return (
+              <li key={p.part}>
+                <span className="floor-name">{p.title.split(' · ')[1]}</span>
+                <span className="floor-stars">
+                  <StarIcon on={got > 0} />
+                  {got}/{list.length * 3}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
         <div className="title-links">
           <button
             className="link"

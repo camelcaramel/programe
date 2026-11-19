@@ -545,7 +545,7 @@ button.concept:focus-visible { outline: 3px solid var(--gold); outline-offset: 2
 /* ---- 타이틀 / 스테이지 선택 */
 .dungeon-bg { background-color: var(--dungeon); background-size: 64px 64px; image-rendering: pixelated; }
 .dungeon-bg::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(42, 34, 54, 0.25), rgba(42, 34, 54, 0.85)); }
-.title-actors { position: absolute; inset: 0; pointer-events: none; }
+.title-actors { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .ta { position: absolute; width: 96px; height: 96px; }
 .ta-hero { left: 14%; bottom: 18%; width: 128px; height: 128px; animation: bob 1.6s ease-in-out infinite; }
 .ta-slime { right: 18%; bottom: 20%; animation: squish 1.1s ease-in-out infinite; transform-origin: bottom; }
@@ -663,3 +663,89 @@ button.concept:focus-visible { outline: 3px solid var(--gold); outline-offset: 2
 .title-links { margin-top: 10px; }
 .title-links .link { font-size: 15px; color: #fff; text-shadow: var(--o1); }
 .stage-grid + .part-head { margin-top: 28px; }
+
+/* ================================================================ 처음 화면 (스토리 랜딩, 2026-11-19) */
+.overlay.title { overflow-x: hidden; overflow-y: auto; place-items: start center; }
+.screen.title-screen { width: min(760px, 100%); padding: 28px 16px 32px; }
+.title-screen .ribbon { margin: 10px 0 14px; }
+.title-pai { display: flex; gap: 12px; align-items: flex-start; width: min(620px, 100%); margin-bottom: 14px; text-align: left; }
+.title-pai .pai-icon { flex: none; filter: drop-shadow(var(--drop-3)); animation: bob 2.4s ease-in-out infinite; }
+.title-bubble {
+  position: relative; flex: 1; margin: 0; padding: 10px 16px; font-size: 16px; line-height: 1.65;
+  background: var(--paper); border: var(--border-base, 3px) solid var(--ink); border-radius: 16px; box-shadow: var(--drop-4);
+}
+.title-bubble::before { content: ''; position: absolute; left: -11px; top: 20px; border: 8px solid transparent; border-right-color: var(--ink); border-left: 0; }
+.title-bubble b { display: block; font-size: 13px; color: #3f8f4e; }
+.title-bubble em { font-style: normal; font-weight: 700; color: var(--cover-dark); }
+
+/* 데모: 두루마리대로 움직이는 마법사 */
+.demo { --t: 48px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; margin-bottom: 18px; }
+.demo-map {
+  position: relative; display: grid; grid-template-columns: repeat(var(--cols), var(--t)); grid-auto-rows: var(--t);
+  border: 3px solid var(--ink); border-radius: 6px; box-shadow: var(--drop-4); overflow: hidden;
+}
+.demo-tile { width: var(--t); height: var(--t); display: block; }
+.demo-thing { position: absolute; top: var(--t); left: calc(var(--x) * var(--t)); width: var(--t); height: var(--t); }
+.demo-hero { transition: left 0.28s steps(4, end); z-index: 2; }
+.demo-hero.win { animation: demo-win 0.7s ease-in-out infinite; }
+@keyframes demo-win { 50% { transform: translateY(-8px); filter: drop-shadow(0 0 6px var(--fx-spark)); } }
+.demo-slime { animation: squish 1.1s ease-in-out infinite; transform-origin: bottom; }
+.demo-fire {
+  position: absolute; top: var(--t); left: calc(var(--x) * var(--t)); width: var(--t); height: var(--t); z-index: 3;
+  background: radial-gradient(circle, var(--fx-spark) 0 18%, var(--fx-fire) 40%, transparent 70%); animation: demo-fire 0.6s ease-out both;
+}
+@keyframes demo-fire { from { transform: translateX(calc(var(--t) * -1)) scale(0.4); opacity: 0.4; } }
+.demo-code {
+  margin: 0; padding: 10px 14px; min-width: 270px; font-family: var(--mono); font-size: 14px; line-height: 1.55; text-align: left;
+  color: var(--slate-text); background: var(--slate); border: 3px solid var(--ink); border-radius: 12px; box-shadow: var(--drop-4);
+}
+.demo-code span { display: block; padding: 0 6px; border-radius: 4px; white-space: pre; }
+.demo-code span.on { color: var(--ink); background: var(--gold); }
+
+.title-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+.floors { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 16px 0 0; padding: 0; list-style: none; }
+.floors li {
+  display: flex; gap: 8px; align-items: center; padding: 4px 12px; font-size: 14px; color: var(--white);
+  background: var(--ink-glass); border: 2px solid var(--ink); border-radius: 999px;
+}
+.floors li + li::before { content: '▸'; margin: 0 4px 0 -2px; color: var(--gold-light); }
+.floor-stars { display: inline-flex; gap: 3px; align-items: center; color: var(--gold-light); }
+.floor-stars svg { width: 14px; height: 14px; }
+
+/* 횃불 빛과 유령 */
+.torch { position: absolute; top: 30%; width: 180px; height: 180px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 170, 60, 0.35), rgba(255, 140, 40, 0.12) 45%, transparent 70%); animation: torch 2.2s ease-in-out infinite; }
+.torch-l { left: -40px; }
+.torch-r { right: -40px; animation-delay: -1.1s; }
+@keyframes torch { 50% { opacity: 0.65; transform: scale(0.93); } }
+.overlay.title .ta-bat { left: 5%; top: 62%; }
+.ta-ghost { right: 6%; top: 58%; width: 80px; height: 80px; opacity: 0.8; animation: flap 4s ease-in-out infinite reverse; }
+
+@media (max-width: 1000px) {
+  .overlay.title .ta-bat, .ta-ghost { display: none; }
+}
+@media (max-width: 560px) {
+  .title-screen .logo-text { font-size: 60px; -webkit-text-stroke-width: 10px; }
+  .title-screen .logo-tag { right: -14px; font-size: 14px; }
+  .title-screen .ribbon { padding: 6px 16px 5px; font-size: 17px; }
+  .title-bubble { font-size: 15px; }
+  .title-actions .btn.big { font-size: 22px; }
+  .demo { --t: 32px; }
+  .demo-code { min-width: 0; width: 100%; font-size: 12.5px; }
+  .ta-bat, .ta-ghost { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .title-pai .pai-icon, .demo-slime, .demo-hero.win, .torch, .ta { animation: none; }
+}
+
+/* 맵 위 파이의 한 줄 (스테이지를 열 때 잠깐) */
+.pai-line {
+  position: fixed; z-index: 120; display: flex; gap: 8px; align-items: flex-start; max-width: min(460px, calc(100vw - 32px));
+  padding: 0; font: inherit; text-align: left; background: none; border: 0; cursor: pointer; animation: card-in 0.35s ease-out both;
+}
+.pai-line .pai-icon { flex: none; filter: drop-shadow(var(--drop-2)); }
+.pai-line-bubble {
+  position: relative; padding: 8px 12px; font-size: 15px; line-height: 1.5; color: var(--ink);
+  background: var(--paper); border: 3px solid var(--ink); border-radius: 12px; box-shadow: var(--drop-3);
+}
+.pai-line-bubble::before { content: ''; position: absolute; left: -9px; top: 12px; border: 6px solid transparent; border-right-color: var(--ink); border-left: 0; }
