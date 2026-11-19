@@ -375,7 +375,6 @@ kbd {
 .story-card b { color: var(--cover-dark); }
 .btn.start { animation: breathe 1.6s ease-in-out infinite; }
 @keyframes breathe { 50% { transform: scale(1.05); } }
-.title-engine { margin-top: 22px; padding: 5px 14px; color: var(--ink); background: rgba(255, 248, 234, 0.9); border: var(--border-mid) solid var(--ink); border-radius: var(--radius-pill); }
 
 /* ================================================================ v0.2 탑다운 그리드 */
 .pixel { image-rendering: pixelated; }
@@ -619,6 +618,18 @@ button.concept:focus-visible { outline: 3px solid var(--gold); outline-offset: 2
 .concept-game { margin: 0 0 14px; padding: 8px 12px; font-size: 15px; line-height: 1.5; background: #fff3c8; border: 2px dashed var(--gold-dark); border-radius: 12px; }
 .concept-game span { font-weight: 700; color: var(--cover-dark); }
 .concept-card .result-actions { flex-direction: row; justify-content: center; }
+/* 파이의 대사 (부 안내) · 부 끝 장면 */
+.pai-says { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 12px; }
+.pai-icon { flex: none; image-rendering: pixelated; }
+.pai-bubble { position: relative; flex: 1; padding: 8px 12px; font-size: 15px; line-height: 1.6; background: var(--white); border: 3px solid var(--ink); border-radius: 12px; }
+.pai-bubble::before { content: ''; position: absolute; left: -9px; top: 16px; border: 6px solid transparent; border-right-color: var(--ink); border-left: 0; }
+.pai-bubble b { display: block; font-size: 13px; color: var(--grass, #3f8f4e); }
+.pai-bubble p { margin: 2px 0 0; }
+.ending-line { margin: 0 0 8px; font-size: 16px; line-height: 1.65; }
+.brief-story { display: flex; gap: 6px; align-items: flex-start; margin: 0 0 6px; font-size: 14px; line-height: 1.5; color: var(--brown-soft); }
+.brief-story .pai-icon { margin-top: 1px; }
+.part-story { margin-left: auto; display: flex; gap: 6px; }
+
 .concept-list { list-style: none; padding: 0 !important; }
 .concept-list button { padding: 0; font: inherit; color: var(--cover-dark); background: none; border: none; cursor: pointer; text-decoration: underline; text-align: left; }
 .concept-list .num { display: inline-block; min-width: 26px; color: var(--brown-soft); }

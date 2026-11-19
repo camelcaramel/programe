@@ -1,4 +1,4 @@
-// 2부: 스테이지 11~18. 변수 · 자료형 · 리스트 · 반환값 있는 함수 (PART2.md)
+// 2부: stage-11 ~ stage-18 + 비계 14a·16a·17a (화면 번호 14~24). 변수 · 자료형 · 리스트 · 반환값 있는 함수 (PART2.md)
 // 표지판(T)·석판(M)의 내용과 비밀 문(G)의 암호는 content() 가 시드로 만들고, 계획 화면에서는 가려진다.
 // solution / hardcoded / bypasses 는 학생에게 보이지 않고, 테스트(stages.test.ts)가 확인한다.
 import type { Level, Rng } from '../sim';
@@ -20,6 +20,32 @@ function distinctInts(rng: Rng, n: number, lo: number, hi: number): number[] {
 }
 
 const firstGate = (levels: Level[]) => levels[0].gates[0].code;
+
+/** 길 안내를 "같은 방향 몇 칸" 묶음으로. ["right","right","down"] → [["right",2],["down",1]] */
+function runsOf(path: string[]): [string, number][] {
+  const out: [string, number][] = [];
+  for (const d of path) {
+    const last = out[out.length - 1];
+    if (last && last[0] === d) last[1]++;
+    else out.push([d, 1]);
+  }
+  return out;
+}
+/** 복도 위쪽 곳곳(3~5곳)에 표지판. 문 바로 앞 칸 위에는 두지 않는다 */
+function scatteredSigns(rng: Rng): string[] {
+  const L = 8 + rng.int(4); // 걷는 칸 (입구 포함)
+  const k = 3 + rng.int(3);
+  const spots = distinctInts(rng, k, 1, L - 1);
+  let top = '';
+  for (let x = 0; x < L + 4; x++) top += spots.includes(x) ? 'T' : '#';
+  return [top, '#S' + '.'.repeat(L - 1) + 'GE#', '#'.repeat(L + 4)];
+}
+
+/** 두 장의 지도(방향·걸음 수 석판)를 한 칸씩 길 안내로 펼친다 */
+function expand(level: Level): string[] {
+  const [dirs, steps] = level.signs.map((s) => s.value as (string | number)[]);
+  return dirs.flatMap((d, i) => Array(steps[i] as number).fill(d as string));
+}
 /** 파이썬 코드 속 값으로 (문자열은 따옴표) */
 const py = (v: unknown) => JSON.stringify(v);
 
@@ -283,12 +309,69 @@ for d in path:
     ],
   },
 
+  // ───────────────────────────── 14a (비계: 인덱스로 두 리스트 짝짓기)
+  {
+    id: 'stage-14a',
+    part: 2,
+    title: '두 장의 지도',
+    concept: '인덱스 · range(len())',
+    goal: '석판 두 개: 위는 방향 리스트, 왼쪽은 걸음 수 리스트예요. 같은 번호끼리 짝지어 "그 방향으로 그 걸음 수만큼" 가세요.',
+    hint: 'for i in range(len(dirs)): 로 번호 i 를 0, 1, 2 … 로 돌려요. 그 안에서 for k in range(steps[i]): 로 move(dirs[i]) 를 반복해요.',
+    note: '미로 모양은 실행할 때마다 바뀌어요. 턴 제한은 길 길이 + 2 예요.',
+    api: PART2_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 5 },
+    map: (rng) => {
+      const g = mazeMap(rng, 6, 4).map((r) => [...r]);
+      g[1][0] = 'M'; // 입구 왼쪽: 걸음 수 리스트
+      return g.map((r) => r.join(''));
+    },
+    maxTurns: (rows) => pathOf(rows).length + 2,
+    content: (_rng, { rows }) => {
+      const runs = runsOf(pathOf(rows));
+      return { tablets: [runs.map((r) => r[0]), runs.map((r) => r[1])] };
+    },
+    concepts: [
+      {
+        name: '인덱스와 len()',
+        text: [
+          '리스트의 값마다 자리 번호가 있어요. 이것을 인덱스(index)라고 해요. 번호는 0 부터 세요!',
+          'dirs[0] 은 첫 번째 값, dirs[1] 은 두 번째 값이에요.',
+          'len(dirs) 는 값의 개수예요. for i in range(len(dirs)): 로 번호 i 를 0 부터 끝까지 돌 수 있어요.',
+          '번호가 있으면 같은 번호의 값을 여러 리스트에서 함께 꺼낼 수 있어요.',
+        ],
+        example: 'names = ["a", "b", "c"]\nages = [12, 15, 9]\nfor i in range(len(names)):\n    print(names[i], ages[i])',
+        inGame: '방향 리스트와 걸음 수 리스트에서 같은 번호 i 의 값을 꺼내, dirs[i] 쪽으로 steps[i] 칸 걸어요.',
+      },
+    ],
+    starter: `# 위 석판: 방향 리스트, 예: ["right", "down", "right"]
+# 왼쪽 석판: 걸음 수 리스트, 예: [3, 2, 1]  →  오른쪽 3칸, 아래 2칸, 오른쪽 1칸
+# 번호(인덱스)는 0 부터 세요. dirs[0] 과 steps[0] 이 한 짝이에요.
+
+dirs = read("up")
+steps = read("left")
+print(dirs[0], steps[0])
+print("짝의 수:", len(dirs))
+`,
+    solution: `dirs = read("up")
+steps = read("left")
+for i in range(len(dirs)):
+    for k in range(steps[i]):
+        move(dirs[i])
+`,
+    bypasses: [
+      { name: '방향마다 한 칸씩만 걷기', code: `for d in read("up"):\n    move(d)\n` },
+      { name: '맵 1 의 길을 move_* 로 나열', code: (levels) => movesCode(expand(levels[0])) },
+      { name: 'look() 으로 더듬으며 길 찾기', code: WALL_FOLLOWER },
+    ],
+  },
+
   // ───────────────────────────── 15
   {
     id: 'stage-15',
     part: 2,
     title: '거꾸로 지도',
-    concept: '인덱스 · len()',
+    concept: '거꾸로 인덱스',
     goal: '이번 석판은 출구에서 입구 쪽으로 거꾸로 적혀 있고, 방향도 반대예요. 뒤에서부터 반대로 따라가세요.',
     hint: 'path[len(path) - 1] 이 마지막 칸이에요. for i in range(len(path)): 안에서 path[len(path) - 1 - i] 를 꺼내고, "up" ↔ "down", "left" ↔ "right" 로 바꿔 움직여요.',
     note: '미로 모양은 실행할 때마다 바뀌어요. 턴 제한은 길 길이 + 2 예요.',
@@ -300,12 +383,11 @@ for d in path:
     content: (_rng, { rows }) => ({ tablets: [[...pathOf(rows)].reverse().map((d) => OPPOSITE[d])] }),
     concepts: [
       {
-        name: '인덱스와 len()',
+        name: '뒤에서부터 꺼내기',
         text: [
-          '리스트의 값마다 자리 번호가 있어요. 이것을 인덱스(index)라고 해요.',
-          '번호는 0 부터 세요! 첫 값은 path[0], 두 번째 값은 path[1].',
-          'len(path) 는 리스트에 든 값의 개수예요. 그래서 마지막 값은 path[len(path) - 1].',
-          '뒤에서 i 번째 값은 path[len(path) - 1 - i] 로 꺼낼 수 있어요.',
+          '번호가 0 부터라서, 값이 len(path) 개면 마지막 값은 path[len(path) - 1] 이에요.',
+          'i 가 0, 1, 2 … 로 커질 때 len(path) - 1 - i 는 끝 번호부터 거꾸로 작아져요.',
+          '그래서 path[len(path) - 1 - i] 는 뒤에서 i 번째 값이에요.',
         ],
         example: 'path = ["a", "b", "c"]\nprint(len(path))             # 3\nprint(path[0], path[2])      # a c\nfor i in range(len(path)):\n    print(path[len(path) - 1 - i])   # c b a',
         inGame: '거꾸로 적힌 길 안내를 뒤에서부터 꺼내고, 방향을 반대로 바꿔 움직여요.',
@@ -393,26 +475,84 @@ move_right()
     ],
   },
 
+  // ───────────────────────────── 16a (비계: 리스트에 모으기)
+  {
+    id: 'stage-16a',
+    part: 2,
+    title: '숫자 모으기',
+    concept: 'append · sum',
+    goal: '복도 위쪽 곳곳에 숫자 표지판이 있어요. 비밀 문의 암호는 표지판 숫자를 모두 더한 값(정수)이에요.',
+    hint: 'nums = [] 로 빈 리스트를 만들고, 표지판을 만날 때마다 nums.append(int(read("up"))). 문 앞에서 sum(nums)!',
+    note: '표지판 개수(3~5개)와 위치, 숫자, 복도 길이가 실행할 때마다 바뀌어요.',
+    api: PART2_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 8 },
+    map: scatteredSigns,
+    content: (rng, { signs }) => {
+      const nums = distinctInts(rng, signs.length, 5, 60);
+      return { signs: nums.map(String), gates: [nums.reduce((a, b) => a + b, 0)] };
+    },
+    concepts: [
+      {
+        name: '리스트에 모으기: append 와 sum()',
+        text: [
+          '[] 는 아무것도 없는 빈 리스트예요.',
+          '리스트.append(값) 은 리스트 맨 뒤에 값을 하나 붙여요. 몇 개가 될지 몰라도 계속 모을 수 있어요.',
+          'sum(리스트) 는 리스트의 값을 모두 더한 값, len(리스트) 는 모은 개수예요.',
+        ],
+        example: 'nums = []\nnums.append(5)\nnums.append(12)\nprint(nums)        # [5, 12]\nprint(sum(nums))   # 17',
+        inGame: '지나가며 읽은 숫자를 nums.append(int(read("up"))) 로 모아 두고, 문 앞에서 sum(nums) 를 넣어요.',
+      },
+    ],
+    starter: `# 길 위쪽 곳곳에 숫자 표지판이 있어요 (개수는 실행할 때마다 달라요).
+# 비밀 문 암호 = 표지판 숫자를 모두 더한 값 (정수)
+# 빈 리스트 [] 를 만들고 .append(값) 으로 하나씩 모아 보세요.
+
+nums = []
+while look("right") != "gate":
+    if look("up") == "sign":
+        print(read("up"))
+    move_right()
+print(nums)
+`,
+    solution: `nums = []
+while look("right") != "gate":
+    if look("up") == "sign":
+        nums.append(int(read("up")))
+    move_right()
+open_gate("right", sum(nums))
+move_right()
+move_right()
+`,
+    bypasses: [
+      {
+        name: '맵 1 의 암호를 코드에 직접 쓰기',
+        code: (levels) => `while look("right") != "gate":\n    move_right()\nopen_gate("right", ${py(firstGate(levels))})\nmove_right()\nmove_right()\n`,
+      },
+      {
+        name: '마지막 표지판 숫자만 넣기',
+        code: `n = 0\nwhile look("right") != "gate":\n    if look("up") == "sign":\n        n = int(read("up"))\n    move_right()\nopen_gate("right", n)\nmove_right()\nmove_right()\n`,
+      },
+      {
+        name: '암호를 하나씩 넣어 보기',
+        code: `while look("right") != "gate":\n    move_right()\nfor c in range(300):\n    open_gate("right", c)\nmove_right()\nmove_right()\n`,
+      },
+    ],
+  },
+
   // ───────────────────────────── 17
   {
     id: 'stage-17',
     part: 2,
     title: '흩어진 숫자',
-    concept: '리스트 만들기 · max',
+    concept: 'max · 글자와 수 비교',
     goal: '복도 위쪽 곳곳에 숫자 표지판이 있어요. 비밀 문의 암호는 그중 가장 큰 수(정수)예요.',
     hint: 'nums = [] 로 빈 리스트를 만들고, 표지판을 만날 때마다 nums.append(int(read("up"))). 문 앞에서 max(nums)!',
     note: '표지판 개수(3~5개)와 위치, 숫자, 복도 길이가 실행할 때마다 바뀌어요.',
     api: PART2_API,
     seeds: [1, 4, 7],
     stars: { lines: 8 },
-    map: (rng) => {
-      const L = 8 + rng.int(4); // 걷는 칸 (입구 포함)
-      const k = 3 + rng.int(3);
-      const spots = distinctInts(rng, k, 1, L - 1); // 문 바로 앞 칸 위에는 두지 않음
-      let top = '';
-      for (let x = 0; x < L + 4; x++) top += spots.includes(x) ? 'T' : '#';
-      return [top, '#S' + '.'.repeat(L - 1) + 'GE#', '#'.repeat(L + 4)];
-    },
+    map: scatteredSigns,
     content: (rng, { signs }) => {
       // 글자 그대로 비교한 최댓값("9" > "10")과 수로 비교한 최댓값이 다르도록 고른다
       for (;;) {
@@ -423,14 +563,13 @@ move_right()
     },
     concepts: [
       {
-        name: '리스트 만들기와 max()',
+        name: 'max() 와 글자 비교 함정',
         text: [
-          '[] 는 아무것도 없는 빈 리스트예요.',
-          '리스트.append(값) 은 리스트 맨 뒤에 값을 하나 붙여요. 몇 개가 될지 몰라도 계속 모을 수 있어요.',
-          'max(리스트) 는 가장 큰 값, min() 은 가장 작은 값, sum() 은 모두 더한 값이에요.',
-          '글자끼리 비교하면 사전 순서라서 "9" 가 "10" 보다 커요. 수로 비교하려면 int() 로 바꿔 모으세요.',
+          'max(리스트) 는 가장 큰 값, min(리스트) 는 가장 작은 값이에요.',
+          '글자끼리 비교하면 사전 순서라서 "9" 가 "10" 보다 커요! (첫 글자 "9" > "1")',
+          '수로 비교하려면 모을 때부터 int() 로 바꿔 모으세요.',
         ],
-        example: 'nums = []\nnums.append(5)\nnums.append(12)\nprint(nums, max(nums))   # [5, 12] 12',
+        example: 'print(max(["9", "10"]))   # 9  (글자 비교)\nprint(max([9, 10]))       # 10 (수 비교)',
         inGame: '지나가며 읽은 숫자를 nums.append(int(read("up"))) 로 모아 두고, 문 앞에서 max(nums) 를 넣어요.',
       },
     ],
@@ -480,12 +619,77 @@ move_right()
     ],
   },
 
+  // ───────────────────────────── 17a (비계: 값을 돌려주는 함수)
+  {
+    id: 'stage-17a',
+    part: 2,
+    title: '암호 변환기',
+    concept: 'return 첫걸음',
+    goal: '문마다 바로 앞 칸 위에 숫자 표지판이 있어요. 비밀 문의 암호는 "표지판 숫자 × 2 + 1"(정수)이에요. 문 3개를 열고 출구로!',
+    hint: 'def code(n): 안에서 return n * 2 + 1 로 계산한 값을 돌려줘요. 그러면 open_gate("right", code(n)) 처럼 쓸 수 있어요.',
+    note: '표지판의 숫자는 실행할 때마다 바뀌어요.',
+    api: PART2_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 8 },
+    map: ['#T#T#T###', '#SG.G.GE#', '#########'],
+    content: (rng) => {
+      const nums = distinctInts(rng, 3, 5, 49);
+      return { signs: nums.map(String), gates: nums.map((n) => n * 2 + 1) };
+    },
+    concepts: [
+      {
+        name: '값을 돌려주는 함수 (return)',
+        text: [
+          'return 값 은 함수를 끝내면서 그 값을 부른 곳으로 돌려줘요.',
+          '함수를 부른 자리 code(5) 가 돌려받은 값(11)으로 바뀐다고 생각하면 돼요.',
+          '돌려받은 값은 변수에 담거나, 다른 함수의 괄호 안에 바로 넣을 수 있어요.',
+        ],
+        example: 'def double(n):\n    return n * 2\n\nx = double(5)\nprint(x, double(x))   # 10 20',
+        inGame: 'code(n) 이 암호를 계산해 돌려주면, 문마다 open_gate("right", code(n)) 한 줄로 열어요.',
+      },
+    ],
+    starter: `# 비밀 문의 암호 = 바로 앞 표지판 숫자 × 2 + 1 (정수)
+# return 은 함수가 계산한 값을 부른 곳으로 돌려줘요.
+# 아래 code(n) 이 올바른 암호를 돌려주도록 고쳐 보세요.
+
+def code(n):
+    return 0
+
+for i in range(3):
+    n = int(read("up"))
+    print(n, "→", code(n))
+    open_gate("right", code(n))
+    move_right()
+    move_right()
+`,
+    solution: `def code(n):
+    return n * 2 + 1
+
+for i in range(3):
+    n = int(read("up"))
+    open_gate("right", code(n))
+    move_right()
+    move_right()
+`,
+    bypasses: [
+      {
+        name: '× 2 만 하기',
+        code: `for i in range(3):\n    n = int(read("up"))\n    open_gate("right", n * 2)\n    move_right()\n    move_right()\n`,
+      },
+      {
+        name: '맵 1 의 암호를 코드에 직접 쓰기',
+        code: (levels) =>
+          levels[0].gates.map((g) => `open_gate("right", ${py(g.code)})\nmove_right()\nmove_right()\n`).join(''),
+      },
+    ],
+  },
+
   // ───────────────────────────── 18
   {
     id: 'stage-18',
     part: 2,
     title: '지도 제작자의 탑',
-    concept: 'return 함수 · 종합',
+    concept: 'if + return · 종합',
     goal: '석판 두 개: 위는 길 안내, 왼쪽은 비밀 문 암호 목록이에요. 길을 막는 몬스터를 약점 마법으로 처치하고, 비밀 문 2개를 열어 출구로!',
     hint: 'def spell_for(kind): 가 몬스터 종류에 맞는 마법 이름을 return 하게 만들고, cast(spell_for(look(d)), d) 로 써요. 문은 만나는 순서대로 codes[0], codes[1] 이에요.',
     note: '미로 모양, 몬스터 종류와 위치, 비밀 문 위치와 암호가 실행할 때마다 바뀌어요.',
@@ -514,13 +718,13 @@ move_right()
     },
     concepts: [
       {
-        name: '값을 돌려주는 함수 (return)',
+        name: '조건마다 다른 값 돌려주기',
         text: [
-          'return 값 은 함수를 끝내면서 그 값을 부른 곳으로 돌려줘요.',
-          '돌려받은 값은 변수에 담거나, 다른 함수의 괄호 안에 바로 넣을 수 있어요.',
+          'return 을 만나면 함수는 그 자리에서 바로 끝나요. 아래 줄은 실행되지 않아요.',
+          'if 안에 return 을 두면 조건마다 다른 값을 돌려줄 수 있어요.',
           '같은 판단을 여러 번 해야 할 때 함수로 만들어 두면 한 줄로 다시 쓸 수 있어요.',
         ],
-        example: 'def double(n):\n    return n * 2\n\nx = double(5)\nprint(x, double(x))   # 10 20',
+        example: 'def sign(n):\n    if n < 0:\n        return "음수"\n    return "0 이상"\n\nprint(sign(-3), sign(7))   # 음수 0 이상',
         inGame: 'spell_for(kind) 가 몬스터에 맞는 마법 이름을 돌려주면 cast(spell_for(look(d)), d) 한 줄로 어떤 몬스터든 처치해요.',
       },
     ],

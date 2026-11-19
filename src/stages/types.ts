@@ -20,9 +20,9 @@ export interface Bypass {
 }
 
 export interface StageInfo extends StageDef {
-  /** 1부(스테이지 1~10) · 2부(11~18) · 3부(19~27) · 4부(28~36) */
+  /** 1부(화면 번호 1~13) · 2부(14~24) · 3부(25~36) · 4부(37~48). 비계 스테이지(id 끝 a) 포함 */
   part: 1 | 2 | 3 | 4;
-  /** 심화 "도전" 스테이지 (4부 34~36) */
+  /** 심화 "도전" 스테이지 (4부 맨 끝 3개: stage-34~36) */
   challenge?: boolean;
   /** 배우는 개념 (짧게) */
   concept: string;
@@ -51,13 +51,13 @@ export const SENSE_API = [...MOVE_API, 'look', 'cast'];
 export const ALL_API = [...SENSE_API, 'get_hp', 'get_pos', 'get_coins', 'get_keys'];
 /** 2부: 표지판·석판 읽기와 비밀 문 */
 export const GATE_API = [...ALL_API, 'read', 'open_gate'];
-/** 2부 14단계부터: move(방향) */
+/** 2부 stage-14 부터: move(방향) */
 export const PART2_API = [...GATE_API, 'move'];
-/** 3부 19단계부터: scan(방향) 으로 몬스터 객체 */
+/** 3부 stage-19 부터: scan(방향) 으로 몬스터 객체 */
 export const OBJ_API = [...PART2_API, 'scan'];
-/** 3부 23단계부터: 로봇 (클래스) */
+/** 3부 stage-22a 부터: 로봇 (클래스) */
 export const CLASS_API = [...OBJ_API, 'wait', 'get_bots', 'hire'];
-/** 3부 26단계부터: get_map() 2차원 리스트 */
+/** 3부 stage-25a 부터: get_map() 2차원 리스트 */
 export const MAP_API = [...CLASS_API, 'get_map'];
 /** 4부: 금고·석상·하노이·통행료 */
 export const ALGO_API = [...MAP_API, 'size', 'peek', 'heavier', 'swap', 'move_disc', 'pay'];

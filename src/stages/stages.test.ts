@@ -17,24 +17,32 @@ beforeAll(async () => {
 const levelsOf = (s: StageInfo) => s.seeds.map((seed) => buildLevel(s, seed));
 const run = (s: StageInfo, code: string) => runStageWith(pyRunStage, code, levelsOf(s), { time_limit: 1, api: s.api });
 
+/** 화면 번호 (1부터). 비계 스테이지가 끼어들어도 id 로 자리를 찾는다 */
+const no = (id: string) => {
+  const i = STAGES.findIndex((s) => s.id === id);
+  if (i < 0) throw new Error(`${id} 가 없어요`);
+  return i + 1;
+};
+
 describe('스테이지 목록', () => {
-  it('1부 10개 + 2부 8개 + 3부 9개 + 4부 9개, id 중복 없음, 도전은 34~36', () => {
-    expect(STAGES).toHaveLength(36);
-    expect(new Set(STAGES.map((s) => s.id)).size).toBe(36);
+  it('1부 13개 + 2부 11개 + 3부 12개 + 4부 12개 (비계 12개 포함), id 중복 없음, 도전은 맨 끝 3개', () => {
+    expect(STAGES).toHaveLength(48);
+    expect(new Set(STAGES.map((s) => s.id)).size).toBe(48);
     expect(STAGES.map((s) => s.part)).toEqual([
-      ...Array(10).fill(1),
-      ...Array(8).fill(2),
-      ...Array(9).fill(3),
-      ...Array(9).fill(4),
+      ...Array(13).fill(1),
+      ...Array(11).fill(2),
+      ...Array(12).fill(3),
+      ...Array(12).fill(4),
     ]);
     expect(STAGES.filter((s) => s.challenge).map((s) => s.id)).toEqual(['stage-34', 'stage-35', 'stage-36']);
+    expect(STAGES.slice(-3).every((s) => s.challenge)).toBe(true);
+    // 비계 스테이지는 이름(stage-NNa)대로 NN 바로 뒤에 온다
+    for (const s of STAGES.filter((s) => /a$/.test(s.id))) expect(no(s.id), s.id).toBe(no(s.id.slice(0, -1)) + 1);
   });
 
-  it('PART2.md §7 · PART3.md §7 · PART4.md §7 표대로 새 개념 카드가 있다', () => {
-    const withCards = STAGES.filter((s) => s.concepts?.length).map((s) => STAGES.indexOf(s) + 1);
-    expect(withCards).toEqual([
-      1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
-    ]);
+  it('STORY.md · PART2~4.md 표대로 새 개념 카드가 있다 (카드 없는 스테이지는 앞 스테이지 개념의 연습)', () => {
+    const without = STAGES.filter((s) => !s.concepts?.length).map((s) => s.id);
+    expect(without).toEqual(['stage-02', 'stage-04', 'stage-07', 'stage-08', 'stage-16']);
     for (const s of STAGES)
       for (const c of s.concepts ?? []) {
         expect(c.text.length, `${s.id} ${c.name}`).toBeGreaterThanOrEqual(2);
@@ -43,15 +51,15 @@ describe('스테이지 목록', () => {
       }
   });
 
-  it('move(방향) 은 14단계부터, read/open_gate 는 11단계부터, scan 19 · hire 23 · get_map 26 부터(36 은 빼고), 4부 명령은 28 부터', () => {
+  it('명령이 열리는 스테이지: read·open_gate 11 · move 14 · scan 19 · hire 22a · get_map 25a(보물 동굴 36 은 빼고) · 4부 명령 28 (모두 id)', () => {
     STAGES.forEach((s, i) => {
       const n = i + 1;
-      expect(s.api.includes('move'), s.id).toBe(n >= 14);
-      expect(s.api.includes('read'), s.id).toBe(n >= 11);
-      expect(s.api.includes('scan'), s.id).toBe(n >= 19);
-      expect(s.api.includes('hire'), s.id).toBe(n >= 23);
-      expect(s.api.includes('get_map'), s.id).toBe(n >= 26 && n !== 36);
-      for (const cmd of ['size', 'peek', 'heavier', 'swap', 'move_disc', 'pay']) expect(s.api.includes(cmd), `${s.id} ${cmd}`).toBe(n >= 28);
+      expect(s.api.includes('move'), s.id).toBe(n >= no('stage-14'));
+      expect(s.api.includes('read'), s.id).toBe(n >= no('stage-11'));
+      expect(s.api.includes('scan'), s.id).toBe(n >= no('stage-19'));
+      expect(s.api.includes('hire'), s.id).toBe(n >= no('stage-22a'));
+      expect(s.api.includes('get_map'), s.id).toBe(n >= no('stage-25a') && s.id !== 'stage-36');
+      for (const cmd of ['size', 'peek', 'heavier', 'swap', 'move_disc', 'pay']) expect(s.api.includes(cmd), `${s.id} ${cmd}`).toBe(n >= no('stage-28'));
     });
   });
 });

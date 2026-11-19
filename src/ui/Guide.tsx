@@ -1,40 +1,100 @@
 // 새 개념 카드와 첫 사용자 튜토리얼 (외부 라이브러리 없이 React 로 직접)
 import { useEffect, useState, type ReactNode } from 'react';
 import { gameStore, useStore } from '../state/store';
-import { closeConcept, closeIntro, endTutorial, guideStore, tutorialStep, type TutorialId } from '../state/guide';
-import { getStage, stageIndex } from '../stages';
+import { closeConcept, closeEnding, closeIntro, endTutorial, guideStore, tutorialStep, type TutorialId } from '../state/guide';
+import { PART_STORY, type PartNo } from '../stages/story';
+import { getStage, stageIndex, stageNo } from '../stages';
 import { mapScreenRect } from '../game/scenes/GridScene';
 
 export function Guide() {
   const intro = useStore(guideStore, (s) => s.intro);
+  const ending = useStore(guideStore, (s) => s.ending);
   const concept = useStore(guideStore, (s) => s.concept);
   const tutorial = useStore(guideStore, (s) => s.tutorial);
   return (
     <>
-      {intro === 3 && <Part3Intro />}
-      {intro === 4 && <Part4Intro />}
-      {intro === null && concept && <ConceptCard stageId={concept} />}
-      {intro === null && tutorial && !concept && <Tutorial id={tutorial.id} step={tutorial.step} />}
+      {intro !== null && <PartIntro part={intro as PartNo} />}
+      {intro === null && ending !== null && <EndingCard part={ending as PartNo} />}
+      {intro === null && ending === null && concept && <ConceptCard stageId={concept} />}
+      {intro === null && ending === null && tutorial && !concept && <Tutorial id={tutorial.id} step={tutorial.step} />}
     </>
   );
 }
 
-// ---------------------------------------------------------------- 3부 안내 (처음 한 번)
+// ---------------------------------------------------------------- 부 안내 (부를 처음 열 때 한 번)
 
-function Part3Intro() {
+/** Esc 로 닫기 */
+function useEscape(close: () => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeIntro();
+      if (e.key === 'Escape') close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [close]);
+}
+
+/** 주문책 정령 파이 (16×16 픽셀 뱀). 타일 묶음에 뱀이 없어 직접 찍었다 */
+const PAI_PIXELS = [
+  '................',
+  '.....oooooo.....',
+  '....oggggggo....',
+  '...oggggggggo...',
+  '...ogwkggwkgo...',
+  '...oggggggggo...',
+  '....ogglggggo...',
+  '.....oggggoor...',
+  '......oggo..r...',
+  '....ooggggo.....',
+  '...oggoooggo....',
+  '..oggo...oggo...',
+  '..ogggoooggggo..',
+  '...oggggggggo...',
+  '....oooooooo....',
+  '................',
+];
+const PAI_COLOR: Record<string, string> = { o: '#2f4a3a', g: '#6cc47a', l: '#a8e6a0', w: '#ffffff', k: '#2a2236', r: '#e05a5a' };
+
+export function PaiIcon({ size = 48 }: { size?: number }) {
   return (
-    <div className="guide-modal" role="dialog" aria-modal="true" aria-label="3부 안내">
-      <div className="concept-card">
-        <div className="concept-ribbon">3부 · 객체와 로봇들</div>
-        <h2 className="concept-name">고등 과정에 온 걸 환영해요!</h2>
-        <ul className="concept-text">
+    <svg className="pai-icon" width={size} height={size} viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true">
+      {PAI_PIXELS.flatMap((row, y) =>
+        [...row].map((c, x) => (PAI_COLOR[c] ? <rect key={`${x},${y}`} x={x} y={y} width={1} height={1} fill={PAI_COLOR[c]} /> : null)),
+      )}
+    </svg>
+  );
+}
+
+/** 파이의 대사 */
+function PaiSays({ lines }: { lines: string[] }) {
+  return (
+    <div className="pai-says">
+      <PaiIcon />
+      <div className="pai-bubble">
+        <b>파이</b>
+        {lines.map((l, i) => (
+          <p key={i}>{l}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** 부마다 이야기 아래에 붙는 규칙 안내 */
+const PART_RULES: Record<PartNo, ReactNode> = {
+  1: (
+    <p className="concept-game">
+      <span>배울 것</span> 순서대로 실행 · for · if · while · 함수 · 변수 · 이중 for. 맵을 보고 코드를 쓴 뒤 <b>▶ 실행</b>!
+    </p>
+  ),
+  2: (
+    <p className="concept-game">
+      <span>배울 것</span> 변수 · 자료형 · 리스트 · 인덱스 · return. 표지판·석판은 <code>read(방향)</code> 으로 읽어요. 계획 화면에서는 내용이 가려져 있어요.
+    </p>
+  ),
+  3: (
+    <>
+      <ul className="concept-text">
           <li>
             몬스터가 <b>변이</b>해서 약점이 실행마다 바뀌어요. <code>scan()</code> 이 돌려주는 <b>객체</b>의 속성(<code>m.weak</code>)을 읽어야 해요.
           </li>
@@ -51,6 +111,42 @@ cast(m.weak, "right")  # 약점 마법`}</pre>
         <p className="concept-game">
           <span>⚠ 조심</span> 약점이 아닌 마법을 맞히면 몬스터가 <b>반격</b>해요(HP −1). 마법을 차례로 다 넣어 보는 방법은 통하지 않아요!
         </p>
+    </>
+  ),
+  4: (
+    <>
+      <ul className="concept-text">
+          <li>
+            <b>금고</b> 속 숫자는 <code>peek(i)</code> 로, <b>석상</b>의 무게는 저울 <code>heavier(i, j)</code> 로만 알 수 있어요. 번호는 0부터예요.
+          </li>
+          <li>
+            들여다보기·저울·바꾸기에는 <b>횟수 제한</b>이 있어요(위쪽 표시). 그 알고리즘이 쓰는 만큼만 주어져서, 다른 방법은 횟수가 모자라요.
+          </li>
+          <li>
+            정렬 방에서는 결과 화면에서 내 정렬과 선택·버블·삽입 정렬의 횟수를 <b>막대로 비교</b>할 수 있어요. {stageNo('stage-34')}~{stageNo('stage-36')}은 <b>도전</b> 스테이지예요.
+          </li>
+        </ul>
+        <pre className="concept-code">{`print(size())          # 석상 몇 개?
+if heavier(0, 1):      # 0번이 1번보다 무거우면
+    swap(0, 1)         # 자리 바꾸기 (1턴)`}</pre>
+        <p className="concept-game">
+          <span>💡 팁</span> 무게는 보이지 않아서 <code>sorted()</code> 나 <code>max()</code> 로는 풀 수 없어요. 비교하고 바꾸는 절차(알고리즘)를 직접 써요!
+        </p>
+    </>
+  ),
+};
+
+function PartIntro({ part }: { part: PartNo }) {
+  useEscape(closeIntro);
+  const st = PART_STORY[part];
+  return (
+    <div className="guide-modal" role="dialog" aria-modal="true" aria-label={`${part}부 이야기`}>
+      <div className="concept-card">
+        <div className="concept-ribbon">
+          {part}부 · {st.floor}
+        </div>
+        <PaiSays lines={st.intro} />
+        {PART_RULES[part]}
         <div className="result-actions">
           <button className="btn primary" autoFocus onClick={closeIntro}>
             시작할게요!
@@ -61,41 +157,24 @@ cast(m.weak, "right")  # 약점 마법`}</pre>
   );
 }
 
-// ---------------------------------------------------------------- 4부 안내 (처음 한 번)
+// ---------------------------------------------------------------- 부 끝 장면 (마지막 정규 스테이지를 처음 깼을 때)
 
-function Part4Intro() {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeIntro();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+function EndingCard({ part }: { part: PartNo }) {
+  useEscape(closeEnding);
+  const { title, lines } = PART_STORY[part].ending;
   return (
-    <div className="guide-modal" role="dialog" aria-modal="true" aria-label="4부 안내">
-      <div className="concept-card">
-        <div className="concept-ribbon">4부 · 알고리즘의 탑</div>
-        <h2 className="concept-name">같은 답, 더 적은 일!</h2>
-        <ul className="concept-text">
-          <li>
-            <b>금고</b> 속 숫자는 <code>peek(i)</code> 로, <b>석상</b>의 무게는 저울 <code>heavier(i, j)</code> 로만 알 수 있어요. 번호는 0부터예요.
-          </li>
-          <li>
-            들여다보기·저울·바꾸기에는 <b>횟수 제한</b>이 있어요(위쪽 표시). 그 알고리즘이 쓰는 만큼만 주어져서, 다른 방법은 횟수가 모자라요.
-          </li>
-          <li>
-            정렬 방에서는 결과 화면에서 내 정렬과 선택·버블·삽입 정렬의 횟수를 <b>막대로 비교</b>할 수 있어요. 34~36은 <b>도전</b> 스테이지예요.
-          </li>
-        </ul>
-        <pre className="concept-code">{`print(size())          # 석상 몇 개?
-if heavier(0, 1):      # 0번이 1번보다 무거우면
-    swap(0, 1)         # 자리 바꾸기 (1턴)`}</pre>
-        <p className="concept-game">
-          <span>💡 팁</span> 무게는 보이지 않아서 <code>sorted()</code> 나 <code>max()</code> 로는 풀 수 없어요. 비교하고 바꾸는 절차(알고리즘)를 직접 써요!
-        </p>
+    <div className="guide-modal" role="dialog" aria-modal="true" aria-label={`${part}부 끝: ${title}`}>
+      <div className="concept-card ending-card">
+        <div className="concept-ribbon">{part === 4 ? '엔딩' : `${part}부 끝`}</div>
+        <h2 className="concept-name">{title}</h2>
+        {lines.map((l, i) => (
+          <p key={i} className="ending-line">
+            {l}
+          </p>
+        ))}
         <div className="result-actions">
-          <button className="btn primary" autoFocus onClick={closeIntro}>
-            시작할게요!
+          <button className="btn primary" autoFocus onClick={closeEnding}>
+            {part === 4 ? '고마워요, 선생님!' : '다음 층으로'}
           </button>
         </div>
       </div>

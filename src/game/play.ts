@@ -4,7 +4,7 @@ import { python } from '../python/runner';
 import { STAGES, getStage, stageIndex } from '../stages';
 import { scoreRun } from '../stages/score';
 import { codeFor, recordStars } from '../state/codeStore';
-import { closeGuide, onStageOpen } from '../state/guide';
+import { closeGuide, onStageCleared, onStageOpen } from '../state/guide';
 import { clearLog, currentTrace, gameStore, log, toast, uiStore, type Speed } from '../state/store';
 
 const STEP_MS = 420; // 1× 속도에서 한 턴
@@ -156,6 +156,7 @@ function finishView() {
   }
   chainAll = false;
   gameStore.set({ playing: false, phase: 'done' });
+  if (s.score?.cleared) onStageCleared(s.stageId);
 }
 
 // ---------------- 재생 조작 ----------------

@@ -279,7 +279,7 @@ function gateTip(result: NonNullable<ReturnType<typeof gameStore.get>['result']>
 }
 
 /**
- * 4부 정렬 방(31~33): 지금 보는 맵의 처음 석상 줄에 선택·버블·삽입 정렬을 돌렸다면 저울·바꾸기를 몇 번 썼을지,
+ * 4부 정렬 방(barsRule 'sorted'): 지금 보는 맵의 처음 석상 줄에 선택·버블·삽입 정렬을 돌렸다면 저울·바꾸기를 몇 번 썼을지,
  * 내 코드가 쓴 횟수와 막대로 나란히 보여 준다 (효율 비교)
  */
 function SortCompare() {

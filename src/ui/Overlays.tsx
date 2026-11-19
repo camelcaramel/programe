@@ -1,10 +1,11 @@
-import { gameStore, toastStore, uiStore, useStore } from '../state/store';
+import { gameStore, toastStore, useStore } from '../state/store';
 import { nextRecommended, progressStore } from '../state/codeStore';
 import { goSelect, goTitle, openStage } from '../game/play';
 import { STAGES, type StageInfo } from '../stages';
-import { replayTutorial } from '../state/guide';
+import { replayTutorial, seenEndings, showEnding, showIntro } from '../state/guide';
+import { PROLOGUE } from '../stages/story';
 import { TILE } from '../game/scenes/GridScene';
-import { EngineStatus, tileImg } from './SidePanel';
+import { tileImg } from './SidePanel';
 import { StarIcon } from './icons';
 
 export function Toasts() {
@@ -32,7 +33,6 @@ export function Overlays() {
 const floorBg = { backgroundImage: `url(${tileImg(TILE.floor)})` };
 
 function TitleScreen() {
-  const status = useStore(uiStore, (s) => s.pythonStatus);
   return (
     <div className="overlay title dungeon-bg" style={floorBg}>
       <div className="title-actors">
@@ -47,11 +47,11 @@ function TitleScreen() {
           <span className="logo-text">programe</span>
           <em className="logo-tag">가제</em>
         </h1>
-        <div className="ribbon">파이썬 주문으로 던전을 탈출하라</div>
+        <div className="ribbon">사라진 스승을 찾아, 파이썬 주문으로</div>
         <p className="story-card">
-          맵을 잘 살펴보고, <b>파이썬 코드</b>로 이동 계획을 적으세요.
+          {PROLOGUE}
           <br />
-          캐릭터는 <b>오직 내 코드대로만</b> 움직여요. <b>?</b> 칸은 실행할 때마다 바뀌니 조심!
+          <b>파이썬 코드</b>로 주문을 적으면 캐릭터는 <b>오직 그 코드대로만</b> 움직여요. <b>?</b> 칸은 들어갈 때마다 바뀌니 조심!
         </p>
         <button
           className="btn primary big start"
@@ -74,9 +74,6 @@ function TitleScreen() {
             튜토리얼 다시 보기
           </button>
         </div>
-        <div className="title-engine">
-          <EngineStatus status={status} long />
-        </div>
       </div>
     </div>
   );
@@ -84,10 +81,10 @@ function TitleScreen() {
 
 /** 선택 화면의 부 나누기 */
 const PARTS: { part: StageInfo['part']; title: string; sub: string }[] = [
-  { part: 1, title: '1부 · 첫 주문들', sub: '순서 · for · if · while · 함수' },
-  { part: 2, title: '2부 · 기억과 목록', sub: '변수 · 자료형 · 리스트 · return' },
-  { part: 3, title: '3부 · 객체와 로봇들', sub: '객체 · 딕셔너리 · 클래스 · 2차원 리스트 · 탐색' },
-  { part: 4, title: '4부 · 알고리즘의 탑', sub: '순차·이진 탐색 · 최댓값 · 선택·버블·삽입 정렬 · 도전: 재귀 · 탐욕 · DFS' },
+  { part: 1, title: '1부 · 견습의 회랑', sub: '순서 · for · if · while · 함수' },
+  { part: 2, title: '2부 · 기억의 서고', sub: '변수 · 자료형 · 리스트 · return' },
+  { part: 3, title: '3부 · 변이의 공방', sub: '객체 · 딕셔너리 · 클래스 · 2차원 리스트 · 탐색' },
+  { part: 4, title: '4부 · 거꾸로 선 탑', sub: '순차·이진 탐색 · 최댓값 · 선택·버블·삽입 정렬 · 도전: 재귀 · 탐욕 · DFS' },
 ];
 
 function StageSelect() {
@@ -135,6 +132,16 @@ function PartSection({
       <div className="part-head">
         <h3>{title}</h3>
         <small>{sub}</small>
+        <span className="part-story">
+          <button className="btn ghost small" onClick={() => showIntro(part)}>
+            이야기
+          </button>
+          {seenEndings().includes(part) && (
+            <button className="btn ghost small" onClick={() => showEnding(part)}>
+              {part === 4 ? '엔딩' : '끝 장면'}
+            </button>
+          )}
+        </span>
       </div>
       <div className="stage-grid">
         {list.map(([s, i]) => {

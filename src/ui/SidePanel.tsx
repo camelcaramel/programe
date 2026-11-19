@@ -4,11 +4,13 @@ import { codeStore, resetCode } from '../state/codeStore';
 import { EDITOR_FONT, clampPanelWidth, clearLog, consoleStore, gameStore, uiStore, useStore, type Tab } from '../state/store';
 import { runCode } from '../game/play';
 import { MONSTER_RULES, MONSTER_KINDS } from '../sim';
-import { countCodeLines, getStage, stageIndex } from '../stages';
+import { countCodeLines, getStage, stageIndex, stageNo } from '../stages';
 import { starRules } from '../stages/score';
 import { API_DOCS } from './apiDocs';
 import { learnedConcepts, replayTutorial, showConcept } from '../state/guide';
 import { BookIcon, StarIcon } from './icons';
+import { PaiIcon } from './Guide';
+import { STAGE_STORY } from '../stages/story';
 import { TILE } from '../game/scenes/GridScene';
 
 export const tileImg = (n: number) => `${import.meta.env.BASE_URL}assets/kenney/topdown/Tiles/tile_${String(n).padStart(4, '0')}.png`;
@@ -98,13 +100,10 @@ function PanelResizer() {
   );
 }
 
-export function EngineStatus({ status, long }: { status: 'loading' | 'ready' | 'error'; long?: boolean }) {
-  const text =
-    status === 'ready'
-      ? long ? '파이썬 준비 완료!' : '파이썬 준비됨'
-      : status === 'loading'
-        ? long ? '파이썬을 불러오는 중… (먼저 시작해도 돼요)' : '파이썬 준비 중…'
-        : long ? '파이썬을 불러오지 못했어요. 새로고침 해 보세요.' : '파이썬 오류';
+/** 파이썬 실행기 상태. 준비가 끝나면 학생에게는 필요 없는 정보라 숨기고, 불러오는 중·오류일 때만 보인다 */
+function EngineStatus({ status }: { status: 'loading' | 'ready' | 'error' }) {
+  if (status === 'ready') return null;
+  const text = status === 'loading' ? '파이썬 준비 중…' : '파이썬 오류 · 새로고침 해 보세요';
   return (
     <span className={`engine ${status}`} title="파이썬 실행기 (Pyodide)">
       <i />
@@ -163,6 +162,12 @@ function CodeTab() {
             {hint ? '힌트 접기' : '힌트 보기'}
           </button>
         </div>
+        {STAGE_STORY[stageId] && (
+          <p className="brief-story">
+            <PaiIcon size={20} />
+            <span>{STAGE_STORY[stageId]}</span>
+          </p>
+        )}
         <p className="brief-goal">{stage.goal}</p>
         <ul className="brief-stars" aria-label="별을 받는 조건">
           {starRules(stage, hasChests).map((r) => (
@@ -331,7 +336,8 @@ function HelpTab() {
                 들여다보기·저울·바꾸기에는 <b>횟수 제한</b>이 있어요(위쪽 표시). 넘으면 오류로 멈춰요.
               </li>
               <li>
-                <b>창살</b>은 방마다 조건이 달라요: 석상이 가벼운→무거운 순서가 되면(31~33), 원판이 모두 C 기둥에 가면(34), 보물상자를 모두 열면(36).
+                <b>창살</b>은 방마다 조건이 달라요: 석상이 가벼운→무거운 순서가 되면({stageNo('stage-30a')}~{stageNo('stage-33')}), 원판이 모두 C 기둥에 가면(
+                {stageNo('stage-34')}), 보물상자를 모두 열면({stageNo('stage-36')}).
               </li>
               <li>
                 <b>요금 문</b>은 통행료를 딱 맞게 내면 열려요. 넘치게 내면 경보로 쓰러져요.

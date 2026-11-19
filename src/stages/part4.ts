@@ -1,4 +1,4 @@
-// 4부: 스테이지 28~36. 탐색 · 최댓값 · 정렬 · 효율 비교, 도전: 재귀 · 탐욕 · 깊이 우선 탐색 (PART4.md)
+// 4부: stage-28 ~ stage-36 + 비계 28a·30a·31a (화면 번호 37~48). 탐색 · 최댓값 · 정렬 · 효율 비교, 도전: 재귀 · 탐욕 · 깊이 우선 탐색 (PART4.md)
 // 금고 속 숫자·석상 무게·원판 수·통행료는 content() 가 시드마다 정하고, 계획 화면에서는 보이지 않는다.
 // 알고리즘은 "횟수"(들여다보기·저울·바꾸기·턴)로 강제한다. 제한값은 sim/algo.ts 의 계산과 정답 코드가 똑같이 맞는다.
 // solution / bypasses 는 학생에게 보이지 않고, 테스트(stages.test.ts)가 "정답은 통과, 우회는 실패"를 확인한다.
@@ -231,6 +231,79 @@ ${TO_EXIT}`,
     ],
   },
 
+  // ───────────────────────────── 28a (비계: 가운데를 한 번 보고 절반 버리기)
+  {
+    id: 'stage-28a',
+    part: 4,
+    title: '가운데부터',
+    concept: '이진 탐색 첫걸음',
+    goal: '금고 속 숫자는 0번부터 작은 것→큰 것 순서예요. 가운데 금고를 먼저 보고, 찾는 숫자가 있을 쪽 절반만 차례로 들여다봐서 금고 번호를 찾아요!',
+    hint: 'mid = (lo + hi) // 2 번 금고를 봐요. 찾는 수가 더 크면 lo = mid + 1, 아니면 hi = mid. 그다음 lo 부터 hi 까지만 차례로 peek!',
+    note: '금고 수(10~12)·숫자는 실행할 때마다 바뀌어요. 들여다보기는 "가운데 1번 + 절반 크기" 만큼뿐이라, 처음부터 차례로 보면 모자랄 수 있어요.',
+    api: ALGO_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 18 },
+    map: (rng) => lineRoom(10 + rng.int(3), 'V', 'G', true),
+    maxTurns: (rows) => rows[0].length,
+    content: (rng, { items }) => {
+      const n = items.length;
+      const values = distinctInts(rng, n, 10, 99);
+      const mid = Math.floor((n - 1) / 2);
+      const limit = 1 + Math.max(mid + 1, n - 1 - mid);
+      // 절반은 왼쪽(3 ~ mid), 절반은 "처음부터 차례로 보면 모자란" 오른쪽(limit ~ n-1)
+      const idx = rng.int(2) === 0 ? 3 + rng.int(mid - 2) : limit + rng.int(n - limit);
+      return { row: values, signs: [String(values[idx])], gates: [idx], peekLimit: limit };
+    },
+    concepts: [
+      {
+        name: '가운데를 보고 절반 버리기',
+        text: [
+          '정렬된 줄에서는 가운데 하나만 봐도, 찾는 수가 왼쪽 절반에 있을지 오른쪽 절반에 있을지 알 수 있어요.',
+          '// 는 나눈 몫(소수점 버림)이에요. (0 + 9) // 2 는 4. 그래서 가운데 번호는 (lo + hi) // 2.',
+          '남은 범위를 lo(처음) ~ hi(끝) 두 변수로 기억하면, range(lo, hi + 1) 로 그 범위만 볼 수 있어요.',
+        ],
+        example:
+          'nums = [3, 8, 15, 21, 30, 42]\nlo, hi = 0, len(nums) - 1\nmid = (lo + hi) // 2      # 2\nif nums[mid] < 30:\n    lo = mid + 1          # 오른쪽 절반만\nelse:\n    hi = mid\nprint(lo, hi)             # 3 5',
+        inGame: '가운데 금고를 peek 해서 절반을 버리고, 남은 절반만 차례로 peek 해요.',
+      },
+    ],
+    starter: `# 금고 속 숫자는 0번부터 작은 것 → 큰 것 순서예요.
+# 들여다보기가 모자라서, 처음부터 차례로 보면 못 찾을 수도 있어요!
+# 가운데 금고를 먼저 보면 절반을 버릴 수 있어요.
+
+target = int(read("down"))
+lo = 0
+hi = size() - 1
+mid = (lo + hi) // 2
+print("가운데", mid, "번 금고:", peek(mid), "/ 찾을 수:", target)
+`,
+    solution: `target = int(read("down"))
+lo = 0
+hi = size() - 1
+mid = (lo + hi) // 2
+if peek(mid) < target:
+    lo = mid + 1
+else:
+    hi = mid
+for i in range(lo, hi + 1):
+    if peek(i) == target:
+        found = i
+        break
+${TO_GATE}open_gate("right", found)
+${TO_EXIT}`,
+    bypasses: [
+      {
+        name: '처음부터 하나씩 (순차 탐색)',
+        code: `target = int(read("down"))\nfor i in range(size()):\n    if peek(i) == target:\n        found = i\n        break\n${TO_GATE}open_gate("right", found)\n${TO_EXIT}`,
+      },
+      {
+        name: '가운데를 보지 않고 늘 오른쪽 절반만',
+        code: `target = int(read("down"))\nfor i in range(size() // 2, size()):\n    if peek(i) == target:\n        found = i\n        break\n${TO_GATE}open_gate("right", found)\n${TO_EXIT}`,
+      },
+      { name: '맵 1 의 금고 번호를 외우기', code: (levels) => `${TO_GATE}open_gate("right", ${levels[0].gates[0].code})\n${TO_EXIT}` },
+    ],
+  },
+
   // ───────────────────────────── 29
   {
     id: 'stage-29',
@@ -259,8 +332,8 @@ ${TO_EXIT}`,
       {
         name: '이진 탐색',
         text: [
-          '데이터가 정렬되어 있으면 가운데를 하나 보고 절반을 통째로 버릴 수 있어요.',
-          '찾는 수가 가운데보다 크면 오른쪽 절반만, 작으면 왼쪽 절반만 남겨요. 남은 범위를 lo ~ hi 로 기억해요.',
+          '"가운데를 보고 절반 버리기"를 남은 범위에서 또, 또 되풀이하는 것이 이진 탐색이에요.',
+          '찾는 수가 가운데보다 크면 lo = mid + 1, 작으면 hi = mid - 1. 범위가 빌 때까지(lo <= hi) while 로 반복해요.',
           '볼 때마다 절반이 되니까 64개도 6번 안에 찾아요. 순차 탐색이라면 64번까지 볼 수 있어요.',
           '정렬되어 있지 않으면 쓸 수 없어요!',
         ],
@@ -360,6 +433,59 @@ ${TO_EXIT}`,
     ],
   },
 
+  // ───────────────────────────── 30a (비계: 선택 정렬 한 바퀴)
+  {
+    id: 'stage-30a',
+    part: 4,
+    title: '가장 가벼운 것을 맨 앞으로',
+    concept: '선택 정렬 한 바퀴',
+    goal: '석상 줄에서 두 석상만 자리가 바뀌어 있어요. 0번 자리의 석상과 가장 가벼운 석상이에요. 가장 가벼운 석상을 찾아 0번과 한 번 바꾸면 창살이 열려요!',
+    hint: 'small = 0 으로 두고 1번부터 heavier(small, i) 를 재요. small 이 더 무거우면 small = i. 다 재고 나서 swap(0, small) 한 번!',
+    note: '석상 수·순서는 실행할 때마다 바뀌어요. 바꾸기는 1번, 저울은 (석상 수 − 1) 번뿐이에요.',
+    api: ALGO_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 8 },
+    map: (rng) => lineRoom(6 + rng.int(3), 'W', '='),
+    maxTurns: (rows) => 1 + corridorWalk(rows) + 2,
+    barsRule: 'sorted',
+    content: (rng, { items }) => {
+      const n = items.length;
+      const row = distinctInts(rng, n, 10, 99);
+      const k = 2 + rng.int(n - 2);
+      [row[0], row[k]] = [row[k], row[0]];
+      return { row, swapLimit: 1, weighLimit: n - 1 };
+    },
+    concepts: [
+      {
+        name: '가장 작은 것 찾아 맨 앞으로',
+        text: [
+          '가장 가벼운 것 찾기는 가장 무거운 것 찾기(최댓값)의 반대예요. heavier(small, i) 가 True 면 i 가 더 가벼워요.',
+          'swap(i, j) 는 두 석상의 자리를 바꿔요(1턴). 멀리 떨어진 두 석상도 바꿀 수 있어요.',
+          '"남은 것 중 가장 가벼운 것을 찾아 맨 앞과 바꾸기" 한 번이 선택 정렬의 한 바퀴예요.',
+        ],
+        example: 'a = [50, 20, 10, 40]\nsmall = 0\nfor i in range(1, len(a)):\n    if a[small] > a[i]:\n        small = i\na[0], a[small] = a[small], a[0]\nprint(a)   # [10, 20, 50, 40]',
+        inGame: 'a[small] > a[i] 는 heavier(small, i), 자리 바꾸기는 swap(0, small)!',
+      },
+    ],
+    starter: `# 0번 석상과 가장 가벼운 석상, 두 개만 자리가 바뀌어 있어요.
+# heavier(i, j) 는 i번이 j번보다 무거우면 True. swap(i, j) 는 두 석상 자리 바꾸기(1번뿐!)
+
+small = 0
+print("1번이 0번보다 가벼운가?", heavier(0, 1))
+`,
+    solution: `small = 0
+for i in range(1, size()):
+    if heavier(small, i):
+        small = i
+swap(0, small)
+${TO_EXIT}`,
+    bypasses: [
+      { name: '0번과 1번 바꾸기', code: `swap(0, 1)\n${TO_EXIT}` },
+      { name: '0번과 맨 끝 바꾸기', code: `swap(0, size() - 1)\n${TO_EXIT}` },
+      { name: '맵 1 의 바꾸기를 외우기', code: (levels) => swapsCode(selectionSwaps(rowOf(levels[0]))) + TO_EXIT },
+    ],
+  },
+
   // ───────────────────────────── 31
   {
     id: 'stage-31',
@@ -422,6 +548,58 @@ ${TO_EXIT}`,
       },
       { name: '정렬하지 않고 걷기', code: TO_EXIT },
       { name: '맵 1 의 바꾸기 순서를 외우기', code: (levels) => swapsCode(selectionSwaps(rowOf(levels[0]))) + TO_EXIT },
+    ],
+  },
+
+  // ───────────────────────────── 31a (비계: 버블 정렬 한 바퀴)
+  {
+    id: 'stage-31a',
+    part: 4,
+    title: '한 번 훑기',
+    concept: '버블 정렬 한 바퀴',
+    goal: '가장 무거운 석상 하나만 제자리를 벗어나 있어요. 이웃끼리만 바꿀 수 있어요. 앞에서부터 한 번 훑으며 그 석상을 맨 끝까지 밀어 보내면 창살이 열려요!',
+    hint: 'for i in range(size() - 1): 로 0번부터 이웃끼리 heavier(i, i + 1) 를 재고, 앞이 무거우면 swap(i, i + 1). 무거운 석상이 거품처럼 끝까지 떠올라요.',
+    note: '석상 수와 무거운 석상의 자리는 실행할 때마다 바뀌어요. swap(i, i + 1) 만 할 수 있고, 턴 제한 = 꼭 필요한 바꾸기 수 + 걷기 + 2.',
+    api: ALGO_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 6 },
+    map: (rng) => lineRoom(6 + rng.int(3), 'W', '='),
+    adjacentOnly: true,
+    barsRule: 'sorted',
+    content: (rng, { items, rows }) => {
+      const n = items.length;
+      const row = distinctInts(rng, n, 10, 99);
+      const top = row.pop()!;
+      row.splice(1 + rng.int(n - 3), 0, top); // 1 ~ n-3 번 자리 (뒤로 2칸 이상 밀어야 함)
+      return { row, weighLimit: n - 1, maxTurns: inversions(row) + corridorWalk(rows) + 2 };
+    },
+    concepts: [
+      {
+        name: '이웃끼리 한 번 훑기',
+        text: [
+          '이웃한 두 개를 비교해서 앞이 더 무거우면 바꿔요. 이것을 0번부터 끝까지 한 번 해요.',
+          '무거운 것은 바뀔 때마다 한 칸씩 뒤로 가니까, 한 번 훑으면 가장 무거운 것이 맨 끝에 가 있어요.',
+          '이미 순서가 맞는 이웃은 바꾸지 않아요. 그래서 재 보지 않고 바꾸면 줄이 엉망이 돼요.',
+        ],
+        example: 'a = [10, 40, 20, 30]\nfor i in range(len(a) - 1):\n    if a[i] > a[i + 1]:\n        a[i], a[i + 1] = a[i + 1], a[i]\nprint(a)   # [10, 20, 30, 40]',
+        inGame: 'a[i] > a[i + 1] 은 heavier(i, i + 1), 바꾸기는 swap(i, i + 1)!',
+      },
+    ],
+    starter: `# 가장 무거운 석상 하나만 제자리를 벗어나 있어요. 이웃끼리만 바꿀 수 있어요: swap(i, i + 1)
+# heavier(i, i + 1) 은 i번이 바로 오른쪽 이웃보다 무거우면 True
+
+n = size()
+print("석상", n, "개")
+print("0번이 1번보다 무거운가?", heavier(0, 1))
+`,
+    solution: `for i in range(size() - 1):
+    if heavier(i, i + 1):
+        swap(i, i + 1)
+${TO_EXIT}`,
+    bypasses: [
+      { name: '재 보지 않고 차례로 바꾸기', code: `for i in range(size() - 1):\n    swap(i, i + 1)\n${TO_EXIT}` },
+      { name: '정렬하지 않고 걷기', code: TO_EXIT },
+      { name: '맵 1 의 바꾸기 순서를 외우기', code: (levels) => swapsCode(adjacentSwaps(rowOf(levels[0]))) + TO_EXIT },
     ],
   },
 

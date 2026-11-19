@@ -1,5 +1,6 @@
-// 1부: 스테이지 1~10. 개념을 하나씩 연다: 순차 → for → if → while → def → 변수 → 이중 for.
-// 2부(11~18)는 part2.ts, 3부(19~27)는 part3.ts, 4부(28~36)는 part4.ts. 네 부를 이어 붙인 STAGES 가 스테이지 순서다.
+// 1부: 화면 번호 1~13. 개념을 하나씩 연다: 순차 → for → if → while → def → 변수 → 이중 for.
+// 2부(14~24)는 part2.ts, 3부(25~36)는 part3.ts, 4부(37~48)는 part4.ts. 네 부를 이어 붙인 STAGES 가 스테이지 순서다.
+// id 는 저장된 진행과 묶여 있어 바꾸지 않는다. 중간에 끼운 비계 스테이지는 stage-06a 처럼 앞 스테이지 id 뒤에 a 를 붙인다 (STORY.md).
 // solution / hardcoded 는 학생에게 보이지 않고, 테스트(stages.test.ts)가 "풀리는지 / 하드코딩이 막히는지" 확인한다.
 import { PART2 } from './part2';
 import { PART3 } from './part3';
@@ -249,21 +250,55 @@ for i in range(8):
   },
   {
     part: 1,
-    id: 'stage-07',
-    title: '끝이 보이지 않는 길',
-    concept: 'while 반복문',
+    id: 'stage-06a',
+    title: '늘어나는 복도',
+    concept: 'while 첫걸음',
     concepts: [
       {
         name: 'while 반복문',
         text: [
           'while 조건: 은 조건이 참(True)인 동안 계속 반복해요. 몇 번일지 몰라도 돼요.',
-          '조건이 거짓(False)이 되는 순간 반복을 멈추고 아래로 내려가요.',
-          'while True: 는 끝나지 않는 반복이에요. 게임에서는 출구에 닿으면 멈추지만, 조심해서 써요.',
+          '반복할 때마다 조건을 다시 확인하고, 거짓(False)이 되는 순간 멈춰서 아래 줄로 내려가요.',
+          'for 는 "몇 번", while 은 "언제까지" 를 정해요.',
         ],
-        example: 'while look("right") == "empty":\n    move_right()',
-        inGame: '길 길이가 맵마다 달라도 "빈칸인 동안 걷기"는 언제나 맞아요.',
+        example: 'while look("right") == "empty":\n    move_right()   # 오른쪽이 빈칸인 동안 걷기\nprint("벽 앞에서 멈췄다!")',
+        inGame: '복도 길이가 실행할 때마다 달라져도 "빈칸인 동안 걷기"는 언제나 맞아요.',
       },
     ],
+    goal: '복도 길이가 실행할 때마다 달라져요. 몇 칸인지 세지 말고, 오른쪽이 빈칸인 동안 걸어서 복도 끝 아래의 출구로!',
+    hint: 'while look("right") == "empty": 아래에 move_right() 를 들여 쓰면, 복도 끝 벽 앞에서 멈춰요. 거기서 아래로 한 칸 가면 출구!',
+    note: '복도 길이가 실행할 때마다 달라져요. 벽에 부딪혀도 1턴이 지나가고, 턴 제한은 걸어야 할 칸 수 + 2예요.',
+    api: SENSE_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 3 },
+    map: (rng) => {
+      const a = 3 + rng.int(8); // 입구 오른쪽 빈칸 수
+      const w = a + 3;
+      return ['#'.repeat(w), '#S' + '.'.repeat(a) + '#', '#'.repeat(a + 1) + 'E#', '#'.repeat(w)];
+    },
+    maxTurns: (rows) => rows.join('').split('.').length - 1 + 1 + 2,
+    starter: `# 복도 길이가 실행할 때마다 달라져요. 몇 칸인지 미리 알 수 없어요!
+# while 조건: 은 조건이 참인 동안 아래 명령을 계속 반복해요.
+# look("right") 가 "empty" 이면 오른쪽 칸이 비어 있다는 뜻이에요.
+
+move_right()
+move_right()
+`,
+    solution: `while look("right") == "empty":
+    move_right()
+move_down()
+`,
+    hardcoded: `for i in range(6):
+    move_right()
+move_down()
+`,
+    bypasses: [{ name: '넉넉하게 많이 걷고 내려가기', code: `for i in range(12):\n    move_right()\nmove_down()\n` }],
+  },
+  {
+    part: 1,
+    id: 'stage-07',
+    title: '끝이 보이지 않는 길',
+    concept: 'while 반복문',
     goal: '길의 길이가 실행할 때마다 달라져요. 턴이 넉넉하지 않으니 벽에 부딪히지 말고 출구로 가세요.',
     hint: 'while look("right") == "empty": 는 오른쪽이 빈칸인 동안 계속 반복해요.',
     note: '복도 길이가 실행할 때마다 달라지고, 턴 제한은 걸어야 할 칸 수 + 2예요.',
@@ -298,21 +333,65 @@ for i in range(3):
   },
   {
     part: 1,
-    id: 'stage-08',
-    title: '세 개의 방',
-    concept: 'def 함수',
+    id: 'stage-07a',
+    title: '기둥 뛰어넘기',
+    concept: 'def 첫걸음',
     concepts: [
       {
         name: 'def 함수 만들기',
         text: [
           'def 이름(): 으로 명령 묶음에 이름을 붙여 새 명령(함수)을 만들 수 있어요.',
           '함수 안 명령은 들여 써요. 만들기만 하면 실행되지 않아요.',
-          '이름() 으로 부를 때마다 그 묶음이 실행돼요.',
+          '이름() 으로 부를 때마다 그 묶음이 실행돼요. 떨어진 곳에서 여러 번 부를 수 있어요.',
         ],
-        example: 'def zigzag():\n    move_right()\n    move_down()\n\nzigzag()\nzigzag()',
-        inGame: '똑같은 방 3개를 지나는 동작을 함수 하나로 만들어 3번 불러요.',
+        example: 'def zigzag():\n    move_right()\n    move_down()\n\nzigzag()\nmove_right()\nzigzag()',
+        inGame: '기둥을 넘는 "위 → 오른쪽 → 오른쪽 → 아래" 를 hop() 함수로 만들어, 기둥마다 hop() 한 줄로 넘어요.',
       },
     ],
+    goal: '복도 곳곳을 기둥이 막고 있어요. 기둥 위로 돌아 넘어 출구로! 15줄 이하로 쓰면 별!',
+    hint: '기둥 바로 앞에서 "위 → 오른쪽 → 오른쪽 → 아래" 로 넘어요. 이 4줄을 def hop(): 으로 묶어 두고, 기둥마다 hop() 을 불러요.',
+    api: MOVE_API,
+    seeds: [1],
+    stars: { lines: 15 },
+    map: [
+      '################',
+      '##...#...##...##',
+      '#S.#...#....#.E#',
+      '################',
+    ],
+    starter: `# 기둥을 넘는 동작은 "위 → 오른쪽 → 오른쪽 → 아래" 예요.
+# def 이름(): 으로 명령 묶음에 이름을 붙이면, 이름() 한 줄로 부를 수 있어요.
+# 만들기만 해서는 실행되지 않아요. 꼭 불러 주세요!
+
+def hop():
+    move_up()
+    move_right()
+
+move_right()
+hop()
+`,
+    solution: `def hop():
+    move_up()
+    move_right()
+    move_right()
+    move_down()
+
+move_right()
+hop()
+move_right()
+move_right()
+hop()
+for i in range(3):
+    move_right()
+hop()
+move_right()
+`,
+  },
+  {
+    part: 1,
+    id: 'stage-08',
+    title: '세 개의 방',
+    concept: 'def 함수 + if',
     goal: '똑같이 생긴 방이 3개 있어요. 방마다 위쪽 칸에 보물상자나 슬라임이 있어요. 상자를 모두 열고 출구로!',
     hint: 'def room(): 으로 "방 하나 지나가기"를 함수로 만들고, 3번 불러요. 위가 슬라임이면 먼저 처치!',
     note: '위쪽 ? 칸은 실행할 때마다 보물상자나 슬라임으로 바뀌어요.',
@@ -409,19 +488,59 @@ while True:
   },
   {
     part: 1,
-    id: 'stage-10',
-    title: '보물 창고',
-    concept: '이중 for · 종합',
+    id: 'stage-09a',
+    title: '작은 창고',
+    concept: '이중 for 첫걸음',
     concepts: [
       {
-        name: '이중 for · % · 매개변수',
+        name: '이중 for',
         text: [
-          'for 안에 for 를 넣으면(이중 for) 바깥 한 번마다 안쪽이 끝까지 반복돼요.',
-          '% 는 나눈 나머지예요. row % 2 == 0 이면 row 가 짝수예요.',
-          'def step(d): 처럼 괄호 안에 이름(매개변수)을 두면, step("right") 로 부를 때 d 에 "right" 가 담겨요.',
+          'for 안에 for 를 넣으면(이중 for) 바깥 반복 한 번마다 안쪽 반복이 처음부터 끝까지 돌아요.',
+          '안쪽 for 는 바깥 for 보다 한 번 더(스페이스 8칸) 들여 써요.',
+          '바깥 for 안에는 안쪽 for 를 여러 개 넣을 수도 있어요.',
         ],
-        example: 'def step(d):\n    print(d)\n\nfor row in range(2):\n    for i in range(3):\n        step("right")',
-        inGame: '줄마다 방향을 바꿔 가며 창고 전체를 훑을 때 이중 for 와 % 를 함께 써요.',
+        example: 'for k in range(2):\n    for i in range(3):\n        move_right()\n    move_down()',
+        inGame: '"오른쪽 끝까지 → 한 칸 아래 → 왼쪽 끝까지 → 한 칸 아래" 를 바깥 for 로 되풀이하면 창고를 두 줄씩 쓸어 담아요.',
+      },
+    ],
+    goal: '작은 창고의 모든 칸에 보물상자가 있어요. 상자를 모두 열고 아래 출구로! 7줄 이하로 쓰면 별!',
+    hint: '한 번 왕복하면 두 줄을 지나요: 오른쪽 4칸 → 아래 1칸 → 왼쪽 4칸 → 아래 1칸. 이 묶음을 for k in range(2): 로 두 번!',
+    api: MOVE_API,
+    seeds: [1],
+    stars: { lines: 7 },
+    map: ['#######', '#Scccc#', '#ccccc#', '#ccccc#', '#ccccc#', '#E#####'],
+    starter: `# for 안에 for 를 넣을 수 있어요 (이중 for).
+# 바깥 for 가 한 번 돌 때마다 안쪽 for 는 처음부터 끝까지 돌아요.
+
+for k in range(1):
+    for i in range(4):
+        move_right()
+    move_down()
+`,
+    solution: `for k in range(2):
+    for i in range(4):
+        move_right()
+    move_down()
+    for i in range(4):
+        move_left()
+    move_down()
+`,
+  },
+  {
+    part: 1,
+    id: 'stage-10',
+    title: '보물 창고',
+    concept: '% · 매개변수 · 종합',
+    concepts: [
+      {
+        name: '% 와 매개변수',
+        text: [
+          '% 는 나눈 나머지예요. 7 % 2 는 1, row % 2 == 0 이면 row 가 짝수예요.',
+          'def step(d): 처럼 괄호 안에 이름(매개변수)을 두면, step("right") 로 부를 때 d 에 "right" 가 담겨요.',
+          '매개변수를 쓰면 방향만 다른 비슷한 동작을 함수 하나로 묶을 수 있어요.',
+        ],
+        example: 'def step(d):\n    print(d, "쪽으로 한 칸")\n\nfor row in range(4):\n    if row % 2 == 0:\n        step("right")\n    else:\n        step("left")',
+        inGame: '줄마다 방향을 바꿔 가며 창고 전체를 훑을 때, 짝수 줄인지 % 로 보고 step(d) 하나로 움직여요.',
       },
     ],
     goal: '5×5 창고 곳곳에 보물상자가 있고, 슬라임도 숨어 있어요. 모든 칸을 지나가며 상자를 다 열고 출구로!',
@@ -487,6 +606,11 @@ export const STAGES: StageInfo[] = [...PART1, ...PART2, ...PART3, ...PART4];
 
 export const stageIndex = (id: string) => STAGES.findIndex((s) => s.id === id);
 export const getStage = (id: string) => STAGES[stageIndex(id)];
+/**
+ * 화면에 보이는 스테이지 번호 (1부터). id 는 저장된 진행과 묶여 있어 그대로 두고,
+ * 비계 스테이지(예: stage-06a)를 끼워 넣으면 번호만 다시 매겨진다. 그래서 안내 글의 번호도 이것으로 만든다.
+ */
+export const stageNo = (id: string) => stageIndex(id) + 1;
 
 /** 별 조건에 쓰는 코드 줄 수: 빈 줄과 주석만 있는 줄은 세지 않는다 */
 export function countCodeLines(code: string): number {

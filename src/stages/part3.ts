@@ -1,4 +1,4 @@
-// 3부: 스테이지 19~27. 객체 · 딕셔너리 · 클래스 · 2차원 리스트 · 탐색 (PART3.md)
+// 3부: stage-19 ~ stage-27 + 비계 22a·25a·26a (화면 번호 25~36). 객체 · 딕셔너리 · 클래스 · 2차원 리스트 · 탐색 (PART3.md)
 // 변이 몬스터(유령 o·거미 x·게 q·미믹 m)의 HP·약점은 content() 가 시드마다 정하고, 계획 화면에서는 보이지 않는다.
 // solution / bypasses 는 학생에게 보이지 않고, 테스트(stages.test.ts)가 "정답은 통과, 우회는 실패"를 확인한다.
 import { SKILLS, type Level, type MonsterKind, type MonsterMutation, type Rng, type Skill } from '../sim';
@@ -342,12 +342,65 @@ move_right()
     ],
   },
 
+  // ───────────────────────────── 22a (비계: 메서드 하나뿐인 클래스)
+  {
+    id: 'stage-22a',
+    part: 3,
+    title: '설계도 한 장',
+    concept: '클래스 첫걸음',
+    goal: '로봇을 복도 끝 발판에 세우면 아래쪽 창살이 열려요. 로봇을 움직이는 클래스를 만들어 고용하고, 창살을 지나 출구로!',
+    hint: 'act(self) 안에서 get_bots()[0].move("right") 로 로봇을 한 칸 움직여요. 발판은 복도 끝이라, 계속 걸어도 발판 위에 멈춰 서요.',
+    note: '복도 길이는 실행할 때마다 바뀌어요. 발판은 look() 으로는 보이지 않아요.',
+    api: CLASS_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 11 },
+    map: (rng) => {
+      const p = 4 + rng.int(7); // 발판 x (로봇은 x=1)
+      const lane = ('#R' + '.'.repeat(p - 2) + 'P').padEnd(13, '#');
+      return ['#############', lane, '#############', WIZ_ROW, '#############'];
+    },
+    maxTurns: (rows) => find(rows, 'P')[0].x - 1 + WIZ_CROSS + 2,
+    concepts: [
+      {
+        name: '클래스와 메서드',
+        text: [
+          '클래스(class)는 객체를 찍어 내는 틀(설계도)이에요. Walker() 처럼 부르면 새 객체가 만들어져요.',
+          '클래스 안에 만든 함수를 메서드라고 해요. 메서드는 첫 매개변수로 self(나 자신, 이 객체)를 받아요.',
+          '객체.메서드() 로 부르면 그 객체의 메서드가 실행돼요.',
+        ],
+        example: 'class Greeter:\n    def hello(self):\n        print("안녕!")\n\ng = Greeter()\ng.hello()   # 안녕!',
+        inGame: 'hire(Walker()) 로 고용하면, 내가 한 턴을 쓸 때마다 그 객체의 act() 가 한 번씩 불려요.',
+      },
+    ],
+    starter: `# 클래스(class)는 객체를 찍어 내는 틀이에요. Walker() 로 객체를 하나 만들어요.
+# hire(객체) 로 고용하면, 내가 한 턴을 쓸 때마다 그 객체의 act() 가 한 번씩 불려요.
+# 지금 act() 는 말만 해요. 로봇을 오른쪽으로 한 칸 움직이게 고쳐 보세요.
+# 로봇 목록은 get_bots(), 첫 번째 로봇은 get_bots()[0] 이에요.
+
+class Walker:
+    def act(self):
+        print("로봇 차례!")
+
+hire(Walker())
+${WALK_TO_EXIT}`,
+    solution: `class Walker:
+    def act(self):
+        get_bots()[0].move("right")
+
+hire(Walker())
+${WALK_TO_EXIT}`,
+    bypasses: [
+      { name: '클래스 없이 로봇을 직접 움직이기', code: `bot = get_bots()[0]\nfor i in range(12):\n    bot.move("right")\n${WALK_TO_EXIT}` },
+      { name: 'hire 에 함수 넣기', code: `def act():\n    get_bots()[0].move("right")\nhire(act)\n${WALK_TO_EXIT}` },
+    ],
+  },
+
   // ───────────────────────────── 23
   {
     id: 'stage-23',
     part: 3,
     title: '첫 로봇',
-    concept: '클래스 · self',
+    concept: '__init__ · self 속성',
     goal: '로봇을 발판 위에 세우면 아래쪽 창살이 열려요. 로봇을 조종할 클래스를 만들어 고용하고, 창살을 지나 출구로!',
     hint: '__init__ 에서 self.left = int(bot.read("up")) 로 걸음 수를 담고, act() 에서 self.left 가 0 보다 클 때만 움직이고 1 씩 줄여요.',
     note: '발판 위치(걸음 수)는 실행할 때마다 바뀌어요. 발판은 look() 으로는 보이지 않아요. 로봇이 발판을 지나치면 창살이 다시 닫혀요.',
@@ -363,11 +416,10 @@ move_right()
     content: (_rng, { rows }) => ({ signs: [String(find(rows, 'P')[0].x - find(rows, 'R')[0].x)] }),
     concepts: [
       {
-        name: '클래스 · __init__ · self · 메서드',
+        name: '__init__ 과 self.속성',
         text: [
-          '클래스(class)는 객체를 찍어 내는 틀이에요. Robot(bot) 처럼 부르면 새 객체가 만들어져요.',
-          '__init__ 은 객체가 만들어질 때 한 번 불리는 메서드예요. 객체가 기억할 값을 self.이름 = 값 으로 담아요.',
-          'self 는 "나 자신(이 객체)"이에요. 메서드(클래스 안의 함수)는 첫 매개변수로 self 를 받아요.',
+          '__init__ 은 객체가 만들어질 때 한 번 불리는 메서드예요. Robot(bot) 의 괄호 안 값이 __init__ 의 매개변수로 들어가요.',
+          '객체가 기억할 값은 self.이름 = 값 으로 담아요. 이것을 속성이라고 해요.',
           'self.left 처럼 객체에 담은 값은 메서드가 끝나도 남아 있어서, 다음에 불릴 때 이어서 쓸 수 있어요.',
         ],
         example:
@@ -623,12 +675,81 @@ ${WALK_TO_EXIT}`,
     ],
   },
 
+  // ───────────────────────────── 25a (비계: 2차원 리스트에서 칸 하나 읽기)
+  {
+    id: 'stage-25a',
+    part: 3,
+    title: '칸 하나 읽기',
+    concept: '2차원 리스트 · grid[y][x]',
+    goal: '세 갈래 복도(y = 1, 3, 5) 중 하나의 끝에만 출구가 있어요. 턴이 빠듯해서 헛걸음할 틈이 없어요. 지도로 출구가 있는 복도를 먼저 찾아 곧장 가세요!',
+    hint: 'grid = get_map() 에서 grid[y][x] 는 (x, y) 칸이에요. 복도 끝 칸의 x 는 len(grid[0]) - 2. y 가 1, 3, 5 인 끝 칸 중 "exit" 인 줄로 내려가서 오른쪽으로 쭉!',
+    note: '출구가 있는 복도는 실행할 때마다 바뀌어요. 계획 화면은 맵 1 이에요.',
+    api: MAP_API,
+    seeds: [5, 8, 1],
+    stars: { lines: 11 },
+    map: (rng) => {
+      const exitRow = [1, 3, 5][rng.int(3)];
+      return [
+        '###########',
+        '#S........#',
+        '#.#########',
+        '#.........#',
+        '#.#########',
+        '#.........#',
+        '###########',
+      ].map((r, y) => (y === exitRow ? r.slice(0, 9) + 'E#' : r));
+    },
+    maxTurns: (rows) => pathOf(rows).length + 1,
+    concepts: [
+      {
+        name: '2차원 리스트',
+        text: [
+          '리스트 안에 리스트를 넣으면 표(격자) 모양을 담을 수 있어요. 이것을 2차원 리스트라고 해요.',
+          'grid[y] 는 y 번째 줄(리스트), grid[y][x] 는 그 줄의 x 번째 칸이에요. 줄(y)을 먼저 써요!',
+          '줄 수는 len(grid), 한 줄의 칸 수는 len(grid[0]) 이에요.',
+        ],
+        example: 'grid = [["#", "."],\n        [".", "k"]]\nprint(grid[1])      # [".", "k"]\nprint(grid[1][1])   # k\nprint(len(grid[0])) # 2',
+        inGame: 'get_map() 은 맵 전체를 look() 과 같은 낱말("wall", "empty", "exit" …)로 담은 2차원 리스트예요. 복도 끝 칸만 짚어 보면 출구가 어디인지 알아요.',
+      },
+    ],
+    starter: `# get_map() 은 맵 전체를 2차원 리스트로 줘요. grid[y][x] 는 (x, y) 칸에 있는 것!
+# 줄 번호 y 를 먼저, 칸 번호 x 를 나중에 써요.
+
+grid = get_map()
+w = len(grid[0])
+print("복도 끝 x =", w - 2)
+print(grid[1][w - 2])
+`,
+    solution: `grid = get_map()
+w = len(grid[0])
+for y in [1, 3, 5]:
+    if grid[y][w - 2] == "exit":
+        target = y
+while get_pos()[1] < target:
+    move_down()
+while look("right") != "exit":
+    move_right()
+move_right()
+`,
+    bypasses: [
+      {
+        name: '가운데 복도부터 가 보고 되돌아오기',
+        code: `move_down()\nmove_down()\nwhile look("right") == "empty":\n    move_right()\nif look("right") != "exit":\n    while get_pos()[0] > 1:\n        move_left()\n    move_up()\n    move_up()\nwhile look("right") == "empty":\n    move_right()\nmove_right()\n`,
+      },
+      { name: '맵 1 의 길을 외우기', code: (levels) => movesCode(pathOf(levelRows(levels[0]))) },
+      {
+        name: 'x, y 를 거꾸로 써서 grid[x][y]',
+        code: `grid = get_map()\nw = len(grid[0])\ntarget = 1\nfor y in [1, 3, 5]:\n    if grid[w - 2][y] == "exit":\n        target = y\nwhile get_pos()[1] < target:\n    move_down()\nwhile look("right") != "exit":\n    move_right()\nmove_right()\n`,
+      },
+    ],
+  },
+
   // ───────────────────────────── 26
   {
     id: 'stage-26',
     part: 3,
     title: '보물 지도 두루마리',
-    concept: '2차원 리스트',
+    concept: '2차원 리스트 훑기',
     goal: '넓은 방 어딘가의 열쇠를 주워, 오른쪽 벽의 문을 열고 출구로! 턴이 빠듯해서 곧장 가야 해요.',
     hint: 'grid = get_map() 은 줄(y)마다 칸(x)을 담은 2차원 리스트예요. 이중 for 로 grid[y][x] == "key" 인 칸을 찾고, get_pos() 를 보며 그 좌표까지 가요.',
     note: '열쇠와 문의 위치는 실행할 때마다 바뀌어요. 턴 제한 = 열쇠까지 + 문까지 + 2.',
@@ -657,11 +778,11 @@ ${WALK_TO_EXIT}`,
     },
     concepts: [
       {
-        name: '2차원 리스트',
+        name: '2차원 리스트 전체 훑기',
         text: [
-          '리스트 안에 리스트를 넣으면 표(격자) 모양을 담을 수 있어요. 이것을 2차원 리스트라고 해요.',
-          'grid[y] 는 y 번째 줄(리스트), grid[y][x] 는 그 줄의 x 번째 칸이에요. 줄(y)을 먼저 써요!',
-          '줄 수는 len(grid), 한 줄의 칸 수는 len(grid[0]). 이중 for 로 모든 칸을 하나씩 볼 수 있어요.',
+          '이중 for 로 y 는 0 부터 len(grid) - 1 까지, x 는 0 부터 len(grid[y]) - 1 까지 돌면 모든 칸을 하나씩 볼 수 있어요.',
+          '찾던 칸을 만나면 그 x, y 를 변수에 담아 두었다가 나중에 써요.',
+          '어느 칸으로 가는 동작을 def go(tx, ty): 함수로 만들어 두면 여러 곳에 쓸 수 있어요.',
         ],
         example:
           'grid = [["#", "."],\n        [".", "k"]]\nprint(grid[1][1])   # k\nfor y in range(len(grid)):\n    for x in range(len(grid[y])):\n        if grid[y][x] == "k":\n            print(x, y)   # 1 1',
@@ -720,6 +841,110 @@ move_right()
     ],
   },
 
+  // ───────────────────────────── 26a (비계: BFS 로 거리만 구하기)
+  {
+    id: 'stage-26a',
+    part: 3,
+    title: '한 겹씩 넓히기',
+    concept: 'BFS 첫걸음 · 거리',
+    goal: '입구 왼쪽 비밀 문 너머가 출구예요. 암호는 "입구에서 미로 속 열쇠까지 가장 짧은 걸음 수"(정수)예요. 미로를 걷지 말고 지도로 재세요!',
+    hint: '너비 우선 탐색: dist = {입구: 0} 과 queue = [입구] 로 시작해서, 꺼낸 칸의 이웃 중 처음 보는 칸은 dist[이웃] = dist[지금] + 1 로 적고 큐에 넣어요. 열쇠 칸의 dist 가 암호!',
+    note: '미로는 실행할 때마다 바뀌어요. 길이 여러 갈래라, 아무 길이나 센 걸음 수는 틀릴 수 있어요.',
+    api: MAP_API,
+    seeds: [1, 2, 3],
+    stars: { lines: 18 },
+    map: (rng) =>
+      // loopyMaze 의 출구 자리에 열쇠를 두고, 왼쪽에 [출구][비밀 문] 을 붙인다 (전체가 1칸 오른쪽으로 밀림)
+      loopyMaze(rng, 8, 5, 7).map((r, y) => (y === 1 ? 'EG' : '##') + r.slice(1).replace('E', 'k')),
+    maxTurns: 6,
+    content: (_rng, { rows }) => {
+      const maze = rows.map((r) => r.replace('E', '#').replace('G', '#').replace('k', 'E'));
+      return { gates: [pathOf(maze).length] };
+    },
+    concepts: [
+      {
+        name: '너비 우선 탐색 (BFS)',
+        text: [
+          '탐색은 갈 수 있는 곳을 빠짐없이 살펴보며 답을 찾는 방법이에요.',
+          '너비 우선 탐색(BFS)은 출발점에서 1칸, 2칸, 3칸 … 거리 순서로 퍼져 나가요. 그래서 처음 닿았을 때의 거리가 가장 짧은 거리예요.',
+          '큐(queue): 먼저 넣은 것을 먼저 꺼내는 줄. 리스트의 append() 로 넣고 pop(0) 으로 꺼내요.',
+          '칸을 튜플 (x, y) 로 다루면 딕셔너리의 키로 쓸 수 있어요. dist[(x, y)] 에 거리를 적으면 방문 표시도 돼요.',
+        ],
+        example:
+          'queue = [start]\ndist = {start: 0}\nwhile len(queue) > 0:\n    here = queue.pop(0)\n    for nxt in 이웃(here):\n        if nxt not in dist:\n            dist[nxt] = dist[here] + 1\n            queue.append(nxt)',
+        inGame: 'get_map() 으로 미로를 받아 입구에서 BFS 로 퍼져 나가며 칸마다 거리를 적어요. 열쇠 칸에 적힌 거리가 암호!',
+      },
+    ],
+    starter: `# 암호 = 입구에서 미로 속 열쇠까지 가장 짧은 걸음 수 (정수)
+# 너비 우선 탐색(BFS): 가까운 칸부터 한 겹씩 퍼져 나가며 거리를 적어요.
+# 칸은 튜플 (x, y) 로 다루면 딕셔너리의 키로 쓸 수 있어요.
+
+grid = get_map()
+start = get_pos()
+dist = {start: 0}
+queue = [start]
+x, y = queue.pop(0)
+print("꺼낸 칸:", x, y, "거리:", dist[(x, y)])
+for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+    print("이웃:", x + dx, y + dy, grid[y + dy][x + dx])
+`,
+    solution: `grid = get_map()
+start = get_pos()
+dist = {start: 0}
+queue = [start]
+while len(queue) > 0:
+    x, y = queue.pop(0)
+    if grid[y][x] == "key":
+        break
+    for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+        nx = x + dx
+        ny = y + dy
+        if grid[ny][nx] == "empty" or grid[ny][nx] == "key":
+            if (nx, ny) not in dist:
+                dist[(nx, ny)] = dist[(x, y)] + 1
+                queue.append((nx, ny))
+open_gate("left", dist[(x, y)])
+move_left()
+move_left()
+`,
+    bypasses: [
+      {
+        name: '깊이 우선 탐색(DFS)으로 처음 찾은 길의 걸음 수',
+        code: `grid = get_map()
+seen = []
+def dfs(x, y):
+    if grid[y][x] == "key":
+        return 0
+    seen.append((x, y))
+    for dx, dy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+        nx = x + dx
+        ny = y + dy
+        if grid[ny][nx] in ["empty", "key"] and (nx, ny) not in seen:
+            rest = dfs(nx, ny)
+            if rest is not None:
+                return rest + 1
+    return None
+x, y = get_pos()
+open_gate("left", dfs(x, y))
+move_left()
+move_left()
+`,
+      },
+      {
+        name: '가로 + 세로 칸 차이 (벽 무시)',
+        code: `grid = get_map()\nx, y = get_pos()\nfor yy in range(len(grid)):\n    for xx in range(len(grid[yy])):\n        if grid[yy][xx] == "key":\n            cx = xx\n            cy = yy\nopen_gate("left", abs(cx - x) + abs(cy - y))\nmove_left()\nmove_left()\n`,
+      },
+      {
+        name: '맵 1 의 암호를 코드에 직접 쓰기',
+        code: (levels) => `open_gate("left", ${levels[0].gates[0].code})\nmove_left()\nmove_left()\n`,
+      },
+      {
+        name: '암호를 하나씩 넣어 보기',
+        code: `for c in range(100):\n    open_gate("left", c)\nmove_left()\nmove_left()\n`,
+      },
+    ],
+  },
+
   // ───────────────────────────── 27
   {
     id: 'stage-27',
@@ -736,12 +961,11 @@ move_right()
     maxTurns: (rows) => pathOf(rows).length + 1,
     concepts: [
       {
-        name: '너비 우선 탐색 (BFS)',
+        name: '왔던 길 되짚기',
         text: [
-          '탐색은 갈 수 있는 곳을 빠짐없이 살펴보며 답을 찾는 방법이에요.',
-          '너비 우선 탐색(BFS)은 출발점에서 1칸, 2칸, 3칸 … 거리 순서로 퍼져 나가요. 그래서 처음 도착한 길이 가장 짧은 길이에요.',
-          '큐(queue): 먼저 넣은 것을 먼저 꺼내는 줄. 리스트의 append() 로 넣고 pop(0) 으로 꺼내요.',
-          '칸마다 "어디서 왔는지"를 딕셔너리에 적어 두면(방문 표시도 됨), 출구에서 거꾸로 되짚어 길을 만들 수 있어요.',
+          'BFS 로 퍼져 나갈 때 칸마다 "어디서 왔는지(와 어느 방향으로 왔는지)"를 딕셔너리에 적어 두어요.',
+          '출구에 닿으면, 출구에서 시작해 "어디서 왔는지"를 따라 입구까지 거꾸로 되짚어요.',
+          '되짚은 길은 출구 → 입구 순서라서, reversed() 로 뒤집어 따라가요.',
         ],
         example:
           'queue = [start]\ncame = {start: None}\nwhile queue:\n    here = queue.pop(0)\n    for nxt in 이웃(here):\n        if nxt not in came:\n            came[nxt] = here\n            queue.append(nxt)',
