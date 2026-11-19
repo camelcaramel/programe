@@ -31,6 +31,8 @@ interface Seen {
   endings: number[];
   /** 본 중간 이야기 (스테이지 id) */
   beats: string[];
+  /** 처음 화면의 프롤로그를 봤는지 */
+  prologue: boolean;
 }
 
 function loadSeen(): Seen {
@@ -38,12 +40,12 @@ function loadSeen(): Seen {
     const raw = localStorage.getItem(SEEN_KEY);
     if (raw) {
       const v = JSON.parse(raw) as Partial<Seen>;
-      return { concepts: v.concepts ?? [], tutorials: v.tutorials ?? [], intros: v.intros ?? [], endings: v.endings ?? [], beats: v.beats ?? [] };
+      return { concepts: v.concepts ?? [], tutorials: v.tutorials ?? [], intros: v.intros ?? [], endings: v.endings ?? [], beats: v.beats ?? [], prologue: v.prologue ?? false };
     }
   } catch {
     /* 저장소를 쓸 수 없으면 처음부터 */
   }
-  return { concepts: [], tutorials: [], intros: [], endings: [], beats: [] };
+  return { concepts: [], tutorials: [], intros: [], endings: [], beats: [], prologue: false };
 }
 
 let seen = loadSeen();
@@ -139,6 +141,13 @@ export function closeBeat() {
     saveSeen();
   }
   guideStore.set({ beat: null });
+}
+
+/** 프롤로그: 처음 화면의 컷신. 1부 안내 카드의 이야기와 겹치므로, 프롤로그를 보면 1부 카드는 띄우지 않는다 */
+export const prologueSeen = () => seen.prologue;
+export function markPrologueSeen() {
+  seen = { ...seen, prologue: true, intros: seen.intros.includes(1) ? seen.intros : [...seen.intros, 1] };
+  saveSeen();
 }
 
 /** 이미 본 중간 이야기 */
