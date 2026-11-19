@@ -343,17 +343,23 @@ export class GridScene extends Phaser.Scene {
 
   /** 표지판·석판 위의 작은 ? 말풍선. 읽으면 지우도록 칸 좌표로 기억한다 */
   private addSignMark(p: Pos) {
-    const x = cx(p.x) + 5;
-    const y = cy(p.y) - 6;
-    const bg = this.add.circle(x, y, 4, 0xf4eeda, 0.95).setStrokeStyle(0.75, 0x353541);
-    const t = this.add
-      .text(x, y + 0.3, '?', { fontFamily: FONT, fontSize: '40px', color: '#353541' })
-      .setOrigin(0.5)
-      .setScale(0.17);
-    this.objLayer.add([bg, t]);
-    this.signMarks.set(keyOf(p), [bg, t]);
-    this.marks.push(bg, t);
-    this.tweens.add({ targets: [bg, t], y: '-=1', duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    const bg = this.add.circle(0, 0, 4, 0xf4eeda, 0.95).setStrokeStyle(0.75, 0x353541);
+    const t = this.add.text(0, 0.3, '?', { fontFamily: FONT, fontSize: '40px', color: '#353541' }).setOrigin(0.5).setScale(0.17);
+    const box = this.bobbing(cx(p.x) + 5, cy(p.y) - 6, [bg, t], 1, 800);
+    this.signMarks.set(keyOf(p), [box]);
+  }
+
+  /**
+   * 둥둥 떠 있는 표시. roundPixels 가 켜져 있으면 글자는 월드 좌표가 정수로 내림되어
+   * 1칸 픽셀(화면에서는 배율만큼) 단위로 뚝뚝 끊기므로, 컨테이너에 담아 컨테이너를 움직인다
+   * (컨테이너 위치는 내림되지 않는다)
+   */
+  private bobbing(x: number, y: number, parts: Phaser.GameObjects.GameObject[], rise: number, duration: number) {
+    const box = this.add.container(x, y, parts);
+    this.objLayer.add(box);
+    this.marks.push(box);
+    this.tweens.add({ targets: box, y: y - rise, duration, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    return box;
   }
 
   /** read · open_gate 장면의 말풍선 (재생 중 그 턴 동안 떠 있다) */
@@ -445,14 +451,9 @@ export class GridScene extends Phaser.Scene {
   }
 
   private addQuestion(p: Pos) {
-    const bg = this.add.circle(cx(p.x), cy(p.y), 6, hex(COLOR.ink), 0.85).setStrokeStyle(1, hex(COLOR.gold));
-    const t = this.add
-      .text(cx(p.x), cy(p.y) + 0.5, '?', { fontFamily: FONT, fontSize: '40px', color: COLOR.goldLight })
-      .setOrigin(0.5)
-      .setScale(0.25);
-    this.objLayer.add([bg, t]);
-    this.marks.push(bg, t);
-    this.tweens.add({ targets: [bg, t], y: '-=1.5', duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    const bg = this.add.circle(0, 0, 6, hex(COLOR.ink), 0.85).setStrokeStyle(1, hex(COLOR.gold));
+    const t = this.add.text(0, 0.5, '?', { fontFamily: FONT, fontSize: '40px', color: COLOR.goldLight }).setOrigin(0.5).setScale(0.25);
+    this.bobbing(cx(p.x), cy(p.y), [bg, t], 1.5, 700);
   }
 
   private idle(spr: Phaser.GameObjects.Image) {
